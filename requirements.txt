@@ -1,9 +1,6 @@
-streamlit
-llama-index==0.6.0
-neo4j
-transformers
-sentence-transformers
-langchain-community
-langchain==0.0.152 
-langchain-openai
-langchain-base-language
+streamlit==1.38.0
+llama-index-core==0.11.14
+llama-index-embeddings-huggingface==0.3.1
+llama-index-llms-groq==0.2.0
+neo4j==5.25.0
+
