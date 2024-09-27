@@ -3,3 +3,6 @@ llama-index==0.6.0
 neo4j
 transformers
 sentence-transformers
+langchain-community
+langchain
+langchain-openai
