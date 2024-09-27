@@ -4,5 +4,5 @@ neo4j
 transformers
 sentence-transformers
 langchain-community
-langchain==0.0.100 
+langchain==0.0.152 
 langchain-openai
