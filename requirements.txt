@@ -1,5 +1,6 @@
+streamlit
 llama-index==0.6.0
 neo4j
 torch==1.13.1+cu117
-transformers==4.23.0
-sentence-transformers==2.2.2
+transformers
+sentence-transformers
