@@ -6,3 +6,4 @@ sentence-transformers
 langchain-community
 langchain==0.0.152 
 langchain-openai
+langchain-base-language
