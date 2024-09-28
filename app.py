@@ -60,7 +60,7 @@ for docs in reader.iter_data():
 
 # ---- Set up Embedding Model and LLM ----
 embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
-llm = Groq(model="llama3-70b-8192", api_key="GROQ_API_KEY")
+llm = Groq(model="llama3-70b-8192", api_key=GROQ_API_KEY)
 from llama_index.core import Settings
 # Create service context
 Settings.llm = llm
