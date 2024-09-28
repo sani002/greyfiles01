@@ -53,7 +53,10 @@ for docs in reader.iter_data():
 # ---- Set up Embedding Model and LLM ----
 embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
 llm = Groq(model="llama3-70b-8192", api_key="YOUR_GROQ_API_KEY")
-
+from llama_index.core import Settings
+# Create service context
+Settings.llm = llm
+Settings.embed_model = embed_model
 # ---- Semantic Chunking of Documents ----
 text_splitter = SentenceSplitter(chunk_size=2048, chunk_overlap=300)
 nodes = text_splitter.get_nodes_from_documents(all_docs, show_progress=True)
