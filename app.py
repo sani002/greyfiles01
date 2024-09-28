@@ -1,3 +1,4 @@
+from dotenv import dotenv_values
 import os
 import streamlit as st
 from llama_index.core import (
@@ -15,9 +16,16 @@ NEO4J_USERNAME = "neo4j"
 NEO4J_PASSWORD = "TMRa604NneBDNaTfEH7ZhGqPFBhlHLrarLJQXwc83dg"
 driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
-# ---- Environment Variables ----
-os.environ["GROQ_API_KEY"] = "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"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# Load secrets
+try:
+    secrets = dotenv_values(".env")  # for dev env
+    GROQ_API_KEY = secrets["GROQ_API_KEY"]
+except:
+    secrets = st.secrets  # for streamlit deployment
+    GROQ_API_KEY = secrets["GROQ_API_KEY"]
+
+# save the api_key to environment variable
+os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
 # ---- Streamlit App Setup ----
 st.title("Grey Files Prototype 0.1")
