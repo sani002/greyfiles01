@@ -22,7 +22,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # ---- Streamlit App Setup ----
 st.title("Grey Files Prototype 0.1")
 st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
-st.image('https://github.com/sani002/mkpapp/blob/main/Header.png?raw=true')
+st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
 
 # ---- Hide Streamlit Default Elements ----
 hide_streamlit_style = """
