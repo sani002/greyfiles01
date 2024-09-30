@@ -13,7 +13,7 @@ from llama_index.core.node_parser import SentenceSplitter
 # Streamlit page configuration
 st.set_page_config(
     page_title="Grey Files 0.1",
-    page_icon="🇬🇫",
+    page_icon="🐦‍⬛",
     layout="wide",
 )
 
@@ -253,5 +253,5 @@ if user_question:
 for chat in st.session_state.chat_history:
     with st.chat_message("user", avatar="🦉"):
         st.markdown(chat["user"])
-    with st.chat_message("assistant", avatar="🇬🇫"):
+    with st.chat_message("assistant", avatar="🐦‍⬛"):
         st.markdown(chat["response"])
