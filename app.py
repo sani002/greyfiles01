@@ -10,6 +10,30 @@ from llama_index.llms.groq import Groq
 from neo4j import GraphDatabase
 from llama_index.core.node_parser import SentenceSplitter
 
+# Streamlit page configuration
+st.set_page_config(
+    page_title="Grey Files 0.1",
+    page_icon="🇬🇫",
+    layout="wide",
+)
+
+# ---- Hide Streamlit Default Elements ----
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    footer:after {
+                    content:'This app provides answers based on documents regarding Bangladesh history.'; 
+                    visibility: visible;
+                    display: block;
+                    position: relative;
+                    padding: 5px;
+                    top: 2px;
+                }
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # ---- Neo4j Database Credentials ----
 NEO4J_URI = "bolt+s://206d9625.databases.neo4j.io"
 NEO4J_USERNAME = "neo4j"
@@ -29,25 +53,9 @@ os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
 # ---- Streamlit App Setup ----
 st.title("Grey Files Prototype 0.1")
-st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
 st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
+st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
 
-# ---- Hide Streamlit Default Elements ----
-hide_streamlit_style = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    footer:after {
-                    content:'This app provides answers based on documents regarding Bangladesh history.'; 
-                    visibility: visible;
-                    display: block;
-                    position: relative;
-                    padding: 5px;
-                    top: 2px;
-                }
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ---- Recursive Directory Reader and Preprocessing ----
 @st.cache_data
@@ -243,7 +251,7 @@ if user_question:
 
 # Display the chat history in a conversational manner
 for chat in st.session_state.chat_history:
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="🦉"):
         st.markdown(chat["user"])
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="🇬🇫"):
         st.markdown(chat["response"])
