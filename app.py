@@ -50,27 +50,38 @@ hide_streamlit_style = """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ---- Recursive Directory Reader and Preprocessing ----
-reader = SimpleDirectoryReader(input_dir="books")
-all_docs = []
-for docs in reader.iter_data():
-    for doc in docs:
-        # Preprocess document: convert text to uppercase for consistency
-        doc.text = doc.text.upper()
-        all_docs.append(doc)
+@st.cache_data
+def load_and_preprocess_documents():
+    reader = SimpleDirectoryReader(input_dir="books")
+    all_docs = []
+    for docs in reader.iter_data():
+        for doc in docs:
+            # Preprocess document: convert text to uppercase for consistency
+            doc.text = doc.text.upper()
+            all_docs.append(doc)
+    return all_docs
 
 # ---- Set up Embedding Model and LLM ----
-embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
-llm = Groq(model="llama3-70b-8192", api_key=GROQ_API_KEY)
-from llama_index.core import Settings
-# Create service context
-Settings.llm = llm
-Settings.embed_model = embed_model
-# ---- Semantic Chunking of Documents ----
-text_splitter = SentenceSplitter(chunk_size=2048, chunk_overlap=300)
-nodes = text_splitter.get_nodes_from_documents(all_docs, show_progress=True)
+@st.cache_data
+def setup_model_and_index(_all_docs):  # The leading underscore is added to avoid caching this argument
+    embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    llm = Groq(model="llama3-70b-8192", api_key=GROQ_API_KEY)
+    from llama_index.core import Settings
+    Settings.llm = llm
+    Settings.embed_model = embed_model
 
-# ---- Index Creation (In-memory) ----
-index = VectorStoreIndex(nodes, llm=llm, embed_model=embed_model)
+    # ---- Semantic Chunking of Documents ----
+    text_splitter = SentenceSplitter(chunk_size=2048, chunk_overlap=300)
+    nodes = text_splitter.get_nodes_from_documents(_all_docs, show_progress=True)
+
+    # ---- Index Creation (In-memory) ----
+    index = VectorStoreIndex(nodes, llm=llm, embed_model=embed_model)
+    
+    return index
+
+# Load documents and create index
+all_docs = load_and_preprocess_documents()
+index = setup_model_and_index(all_docs)  # Argument now passed as _all_docs in the function
 
 # ---- Prompt Template ----
 prompt_template = """
@@ -80,6 +91,7 @@ Must mention the book or source and page number with each answer.
 
 Context: {context}
 Graph Insights: {graph_insights}
+Chat History: {chat_history}
 Question: {question}
 
 Answer concisely and provide additional helpful insights if applicable.
@@ -197,10 +209,22 @@ def get_graph_insights(question, driver):
         st.error(f"Error fetching graph insights: {e}")
         return "No graph insights available due to an error."
 
-# ---- Combined Query Function ----
-def combined_query(question, query_engine, driver):
+# ---- Combined Query Function with Chat History ----
+def combined_query(question, query_engine, driver, chat_history):
     graph_insights = get_graph_insights(question, driver)
-    query_prompt = prompt_template.format(context=context, graph_insights=graph_insights, question=question)
+    
+    # Format the chat history for the prompt
+    formatted_chat_history = "\n".join(
+        f"User: {entry['user']}\nAssistant: {entry['response']}" for entry in chat_history
+    )
+    
+    query_prompt = prompt_template.format(
+        context=context,
+        graph_insights=graph_insights,
+        chat_history=formatted_chat_history,
+        question=question
+    )
+    
     response = query_engine.query(query_prompt)
     return response
 
@@ -212,7 +236,7 @@ if "chat_history" not in st.session_state:
 user_question = st.chat_input("Ask your question:")
 
 if user_question:
-    response = combined_query(user_question, index.as_query_engine(), driver)
+    response = combined_query(user_question, index.as_query_engine(), driver, st.session_state.chat_history)
 
     # Append question and response to the chat history
     st.session_state.chat_history.append({"user": user_question, "response": response})
