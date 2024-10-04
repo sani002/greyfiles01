@@ -22,12 +22,7 @@ st.set_page_config(
 # Ensure the chat history folder exists
 if "session_file" not in st.session_state:
     session_start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    
-    # Create a folder if it doesn't exist
-    os.makedirs("chat_history", exist_ok=True)
-    
-    # Save the file in the chat_history folder
-    st.session_state.session_file = os.path.join("chat_history", f"chat_{session_start_time}.json")
+    st.session_state.session_file = f"chat_{session_start_time}.json"
 
 # ---- Hide Streamlit Default Elements ----
 hide_streamlit_style = """
