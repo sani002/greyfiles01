@@ -12,6 +12,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from pymongo import MongoClient  # Added for MongoDB integration
 import json
 from datetime import datetime
+import ssl
 
 # Streamlit page configuration
 st.set_page_config(
