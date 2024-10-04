@@ -10,9 +10,7 @@ from llama_index.llms.groq import Groq
 from neo4j import GraphDatabase
 from llama_index.core.node_parser import SentenceSplitter
 from pymongo import MongoClient  # Added for MongoDB integration
-import json
 from datetime import datetime
-import ssl
 
 # Streamlit page configuration
 st.set_page_config(
@@ -39,8 +37,7 @@ hide_streamlit_style = """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ---- MongoDB Atlas Connection ----
-MONGO_URI = "mongodb+srv://smsakeefsani3:DQtEtUakz9fVv6Db@cluster0.bkwpm.mongodb.net/"
-client = MongoClient(MONGO_URI, ssl=True, ssl_cert_reqs=ssl.CERT_NONE)
+client = MongoClient("mongodb+srv://smsakeefsani3:DQtEtUakz9fVv6Db@cluster0.bkwpm.mongodb.net/?retryWrites=true&w=majority")
 db = client["greyfiles"]  # Replace with your database name
 collection = db["chat_history"]  # Collection for chat history
 
