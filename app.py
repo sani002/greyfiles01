@@ -9,9 +9,8 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.groq import Groq
 from neo4j import GraphDatabase
 from llama_index.core.node_parser import SentenceSplitter
-import json
+from st_mongo_connection import MongoDBConnection
 from datetime import datetime
-
 
 # Streamlit page configuration
 st.set_page_config(
@@ -19,15 +18,6 @@ st.set_page_config(
     page_icon="🐦‍⬛",
     layout="wide",
 )
-# Ensure the chat history folder exists
-if "session_file" not in st.session_state:
-    session_start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    
-    # Create a folder if it doesn't exist
-    os.makedirs("chat_history", exist_ok=True)
-    
-    # Save the file in the chat_history folder
-    st.session_state.session_file = os.path.join("chat_history", f"chat_{session_start_time}.json")
 
 # ---- Hide Streamlit Default Elements ----
 hide_streamlit_style = """
@@ -46,6 +36,8 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
+connection = st.connection("mongodb", type=MongoDBConnection)
+
 # ---- Neo4j Database Credentials ----
 NEO4J_URI = "bolt+s://206d9625.databases.neo4j.io"
 NEO4J_USERNAME = "neo4j"
@@ -60,7 +52,7 @@ except:
     secrets = st.secrets  # for streamlit deployment
     GROQ_API_KEY = secrets["GROQ_API_KEY"]
 
-# save the api_key to environment variable
+# Save the api_key to environment variable
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
 # ---- Streamlit App Setup ----
@@ -68,20 +60,20 @@ st.title("Grey Files Prototype 0.1")
 st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
 st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
 
-# Function to save the chat history in real-time
-def save_chat_history_real_time(chat_history, file_path):
+# Function to save the chat history to MongoDB in real-time
+def save_chat_history_to_mongodb(chat_history):
     try:
         serializable_chat_history = []
         for entry in chat_history:
             serializable_chat_history.append({
                 "user": entry["user"],
                 "response": str(entry["response"]),
-                "feedback": entry["feedback"]
+                "feedback": entry["feedback"],
+                "timestamp": datetime.now().isoformat()  # Add timestamp
             })
         
-        # Save the serializable chat history to a JSON file
-        with open(file_path, "w") as f:
-            json.dump(serializable_chat_history, f, indent=4)
+        # Insert the chat history into MongoDB
+        connection.collection.insert_many(serializable_chat_history)
     except Exception as e:
         st.error(f"Failed to save chat history: {e}")
 
@@ -278,7 +270,7 @@ with st.sidebar:
             })
             
             # Save the suggestion in real-time
-            save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
+            save_chat_history_to_mongodb(st.session_state.chat_history)
             
             st.success("Thank you for your suggestion!")
         else:
@@ -302,7 +294,7 @@ if user_question:
     })
     
     # Save chat after each message (real-time saving)
-    save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
+    save_chat_history_to_mongodb(st.session_state.chat_history)
 
 # Display the chat history in a conversational manner (skip suggestions)
 for idx, chat in enumerate(st.session_state.chat_history):
@@ -321,15 +313,14 @@ for idx, chat in enumerate(st.session_state.chat_history):
             with col1:
                 if st.button("Like", key=f"like_{idx}"):
                     st.session_state.chat_history[idx]["feedback"] = "like"
-                    save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
+                    save_chat_history_to_mongodb(st.session_state.chat_history)
             with col2:
                 if st.button("Dislike", key=f"dislike_{idx}"):
                     st.session_state.chat_history[idx]["feedback"] = "dislike"
-                    save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
+                    save_chat_history_to_mongodb(st.session_state.chat_history)
         else:
             # After feedback is given, disable buttons or change their appearance
             with col1:
                 st.button("Liked", disabled=True, key=f"liked_{idx}")
             with col2:
                 st.button("Disliked", disabled=True, key=f"disliked_{idx}")
-
