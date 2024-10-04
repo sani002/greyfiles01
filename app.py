@@ -71,9 +71,9 @@ def save_chat_history_to_mongodb(chat_history):
                 "feedback": entry["feedback"],
                 "timestamp": datetime.now().isoformat()  # Add timestamp
             })
-        
+
         # Insert the chat history into MongoDB
-        ._instance.collection.insert_many(serializable_chat_history)
+        connection.insert(serializable_chat_history)
     except Exception as e:
         st.error(f"Failed to save chat history: {e}")
 
