@@ -39,7 +39,7 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ---- MongoDB Atlas Connection ----
 MONGO_URI = "mongodb+srv://smsakeefsani3:DQtEtUakz9fVv6Db@cluster0.bkwpm.mongodb.net/"
-client = MongoClient(MONGO_URI)
+client = MongoClient(MONGO_URI, ssl=True, ssl_cert_reqs=ssl.CERT_NONE)
 db = client["greyfiles"]  # Replace with your database name
 collection = db["chat_history"]  # Collection for chat history
 
