@@ -38,7 +38,7 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 @st.cache_resource
 def init_connection():
-    return MongoClient("mongodb+srv://st.secrets.db_username:st.secrets.db_pswd@st.secrets.cluster_name.n4ycr4f.mongodb.net/?retryWrites=true&w=majority")
+    return MongoClient("mongodb+srv://smsakeefsani3:DQtEtUakz9fVv6Db@cluster0.bkwpm.mongodb.net/")
 client = init_connection()
 db = client["greyfiles"]  # Replace with your database name
 collection = db["chat_history"]  # Collection for chat history
