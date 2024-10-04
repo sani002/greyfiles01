@@ -73,7 +73,7 @@ def save_chat_history_to_mongodb(chat_history):
             })
         
         # Insert the chat history into MongoDB
-        connection.collection.insert_many(serializable_chat_history)
+        ._instance.collection.insert_many(serializable_chat_history)
     except Exception as e:
         st.error(f"Failed to save chat history: {e}")
 
