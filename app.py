@@ -36,7 +36,7 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-@st.experimental_singleton(suppress_st_warning=True)
+@st.cache_resource
 def init_connection():
     return MongoClient("mongodb+srv://st.secrets.db_username:st.secrets.db_pswd@st.secrets.cluster_name.n4ycr4f.mongodb.net/?retryWrites=true&w=majority")
 client = init_connection()
