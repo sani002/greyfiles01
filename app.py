@@ -138,7 +138,7 @@ context = """You search from every related information from the graph insights!"
 # ---- Graph Query Function ----
 def get_graph_insights(entity_name, entity_type, driver):
     with driver.session() as session:
-        # Cypher query for deep and extensive graph exploration
+        # Cypher query for fuzzy matching using CONTAINS
         cypher_query = f"""
         MATCH (entity:{entity_type})
         WHERE entity.name CONTAINS $entity_name OR entity.description CONTAINS $entity_name
@@ -150,11 +150,8 @@ def get_graph_insights(entity_name, entity_type, driver):
         OPTIONAL MATCH (related5)-[r6]-(related6) // Sixth-level relationships
         OPTIONAL MATCH (related6)-[r7]-(related7) // Seventh-level relationships
         OPTIONAL MATCH (related7)-[r8]-(related8) // Eighth-level relationships
-        OPTIONAL MATCH (related8)-[r9]-(related9) // Ninth-level relationships
-        OPTIONAL MATCH (related9)-[r10]-(related10) // Tenth-level relationships
         RETURN DISTINCT entity, r1, related1, r2, related2, r3, related3, 
-                         r4, related4, r5, related5, r6, related6, r7, related7, 
-                         r8, related8, r9, related9, r10, related10
+                         r4, related4, r5, related5, r6, related6, r7, related7, r8, related8
         """
 
         # Execute the query to fetch all connected nodes and relationships
@@ -187,39 +184,69 @@ def get_graph_insights(entity_name, entity_type, driver):
             related7 = record.get('related7')
             rel8 = record.get('r8')
             related8 = record.get('related8')
-            rel9 = record.get('r9')
-            related9 = record.get('related9')
-            rel10 = record.get('r10')
-            related10 = record.get('related10')
-
-            # Function to append related entities to insights
-            def add_related_entity(related_entity, relationship, relationship_level):
-                if related_entity:
-                    insights["related_entities"].append({
-                        "entity": related_entity["name"],
-                        "type": related_entity.labels if hasattr(related_entity, "labels") else "Unknown",
-                        "relationship": str(relationship.type()) if relationship else "Unknown",
-                        "level": relationship_level
-                    })
 
             # Capture relationships for each level of depth
-            add_related_entity(related1, rel1, 1)
-            add_related_entity(related2, rel2, 2)
-            add_related_entity(related3, rel3, 3)
-            add_related_entity(related4, rel4, 4)
-            add_related_entity(related5, rel5, 5)
-            add_related_entity(related6, rel6, 6)
-            add_related_entity(related7, rel7, 7)
-            add_related_entity(related8, rel8, 8)
-            add_related_entity(related9, rel9, 9)
-            add_related_entity(related10, rel10, 10)
+            if related1:
+                insights["related_entities"].append({
+                    "entity": related1["name"],
+                    "type": related1.labels if hasattr(related1, "labels") else "Unknown",
+                    "relationship": str(rel1.type()) if rel1 else "Unknown"
+                })
+
+            if related2:
+                insights["related_entities"].append({
+                    "entity": related2["name"],
+                    "type": related2.labels if hasattr(related2, "labels") else "Unknown",
+                    "relationship": str(rel2.type()) if rel2 else "Unknown"
+                })
+
+            if related3:
+                insights["related_entities"].append({
+                    "entity": related3["name"],
+                    "type": related3.labels if hasattr(related3, "labels") else "Unknown",
+                    "relationship": str(rel3.type()) if rel3 else "Unknown"
+                })
+
+            if related4:
+                insights["related_entities"].append({
+                    "entity": related4["name"],
+                    "type": related4.labels if hasattr(related4, "labels") else "Unknown",
+                    "relationship": str(rel4.type()) if rel4 else "Unknown"
+                })
+
+            if related5:
+                insights["related_entities"].append({
+                    "entity": related5["name"],
+                    "type": related5.labels if hasattr(related5, "labels") else "Unknown",
+                    "relationship": str(rel5.type()) if rel5 else "Unknown"
+                })
+
+            if related6:
+                insights["related_entities"].append({
+                    "entity": related6["name"],
+                    "type": related6.labels if hasattr(related6, "labels") else "Unknown",
+                    "relationship": str(rel6.type()) if rel6 else "Unknown"
+                })
+
+            if related7:
+                insights["related_entities"].append({
+                    "entity": related7["name"],
+                    "type": related7.labels if hasattr(related7, "labels") else "Unknown",
+                    "relationship": str(rel7.type()) if rel7 else "Unknown"
+                })
+
+            if related8:
+                insights["related_entities"].append({
+                    "entity": related8["name"],
+                    "type": related8.labels if hasattr(related8, "labels") else "Unknown",
+                    "relationship": str(rel8.type()) if rel8 else "Unknown"
+                })
 
         # Check if insights were found and return them, or provide a default message if no data was retrieved.
         if insights["related_entities"]:
             return insights
         else:
             return "No relevant insights found."
-
 
 
 
