@@ -138,9 +138,10 @@ context = """You search from every related information from the graph insights!"
 # ---- Graph Query Function ----
 def get_graph_insights(entity_name, entity_type, driver):
     with driver.session() as session:
-        # Cypher query to match the entity and fetch all its relationships up to 8 levels deep
+        # Cypher query for fuzzy matching using CONTAINS
         cypher_query = f"""
-        MATCH (entity:{entity_type} {{name: $entity_name}})
+        MATCH (entity:{entity_type})
+        WHERE entity.name CONTAINS $entity_name OR entity.description CONTAINS $entity_name
         OPTIONAL MATCH (entity)-[r1]-(related1)   // First-level relationships
         OPTIONAL MATCH (related1)-[r2]-(related2) // Second-level relationships
         OPTIONAL MATCH (related2)-[r3]-(related3) // Third-level relationships
@@ -246,6 +247,7 @@ def get_graph_insights(entity_name, entity_type, driver):
             return insights
         else:
             return "No relevant insights found."
+
 
 
 # ---- Combined Query Function with Chat History ----
