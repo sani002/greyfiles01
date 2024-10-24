@@ -133,26 +133,7 @@ Question: {question}
 Answer concisely and provide additional helpful insights if applicable.
 """
 
-context = """You are trained on these books on historical events, relations, and key dates regarding Bangladesh:
-
-Bangladesh: A Legacy of Blood
-Author: Anthony Mascarenhas
-
-The Blood Telegram: Nixon, Kissinger, and a Forgotten Genocide
-Author: Gary J. Bass
-
-Liberation War Debates in the UK Parliament
-Author: UK Parliament
-
-The Cruel Birth of Bangladesh Through the Eyes of America
-Author: Adit Mahmood
-
-The Rape of Bangladesh
-Author: ANTHONY MASCARENHAS
-
-Pakistan Failure in National Integration
-Author: Rounaq Jahan
-"""
+context = """You are trained on books on historical events, relations, and key dates regarding Bangladesh"""
 
 # ---- Graph Query Function ----
 def get_graph_insights(question, driver):
