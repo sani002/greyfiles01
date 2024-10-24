@@ -133,7 +133,7 @@ Question: {question}
 Answer concisely and provide additional helpful insights if applicable.
 """
 
-context = """You are trained on books on historical events, relations, and key dates regarding Bangladesh"""
+context = """You search from every related information from the graph insights!"""
 
 # ---- Graph Query Function ----
 def get_graph_insights(question, driver):
