@@ -137,135 +137,52 @@ context = """You search from every related information from the graph insights!"
 
 # ---- Graph Query Function ----
 def get_graph_insights(question, driver):
+    # Categorize the question for more focused querying
+    category = categorize_question(question)
+    
     with driver.session() as session:
-        # Query Neo4j for relevant insights based on the question
-        result = session.run(
-            """
-            // Match nodes that may contain the question keyword in key properties
-            MATCH (n)
-            WHERE toLower(n.name) CONTAINS toLower($question)  // For entities with 'name' properties
-            OR toLower(n.title) CONTAINS toLower($question)  // For Works of Art, Laws, etc.
-            OR toLower(n.description) CONTAINS toLower($question)  // For nodes with 'description' properties
-            OR toLower(n.value) CONTAINS toLower($question)  // For Dates
-            OPTIONAL MATCH (n)-[r]-(related)  // Optional match for related nodes
-            RETURN labels(n) AS node_labels,
-                   n.name AS name,
-                   n.title AS title,
-                   n.description AS description,
-                   n.value AS value,
-                   type(r) AS relationship,
-                   collect(related.name) AS related_names,
-                   collect(related.title) AS related_titles,
-                   collect(related.description) AS related_descriptions
-            """,
-            question=question
-        )
+        # Build query based on the question category
+        query = """
+        MATCH (n)
+        WHERE toLower(n.name) CONTAINS toLower($question)
+        OR toLower(n.title) CONTAINS toLower($question)
+        OR toLower(n.description) CONTAINS toLower($question)
+        OR toLower(n.value) CONTAINS toLower($question)
 
-        # Prepare the insights from the query results
+        // Expand relationships up to 3 levels deep and filter paths based on relationship types
+        WITH n
+        CALL apoc.path.expandConfig(n, {
+            relationshipFilter: "PARTICIPATED_IN|INFLUENCED_BY|LOCATED_IN|ASSOCIATED_WITH",
+            labelFilter: "+Person|+Event|+Location|+WorkOfArt|+ScientificDiscovery|+PoliticalParty",
+            minLevel: 1, maxLevel: 3
+        }) YIELD path
+        WITH path, nodes(path) AS allNodes, relationships(path) AS allRels
+        RETURN allNodes, allRels
+        """
+        
+        # Run the query
+        result = session.run(query, question=question)
+
         insights = []
         for record in result:
-            # Determine the type of node (Person, Event, Date, Location, WorkOfArt, etc.) based on labels
-            node_labels = record["node_labels"]
-            node_type = "Unknown"
-            node_value = None
+            nodes = record['allNodes']
+            relationships = record['allRels']
+            
+            for node in nodes:
+                labels = list(node.labels)
+                if "Person" in labels:
+                    insights.append(f"Person: {node['name']}")
+                elif "Event" in labels:
+                    insights.append(f"Event: {node['name']}")
+                # Continue for other node types (WorkOfArt, ScientificDiscovery, etc.)
 
-            # Identify the type of node and relevant property
-            if "Person" in node_labels:
-                node_type = "Person"
-                node_value = record["name"]
-            elif "Event" in node_labels:
-                node_type = "Event"
-                node_value = record["name"]
-            elif "Date" in node_labels:
-                node_type = "Date"
-                node_value = record["value"]
-            elif "Location" in node_labels:
-                node_type = "Location"
-                node_value = record["name"]
-            elif "WorkOfArt" in node_labels:
-                node_type = "WorkOfArt"
-                node_value = record["title"]
-            elif "Law" in node_labels:
-                node_type = "Law"
-                node_value = record["title"]
-            elif "Reform" in node_labels:
-                node_type = "Reform"
-                node_value = record["description"]
-            elif "Change" in node_labels:
-                node_type = "Change"
-                node_value = record["description"]
-            elif "Movement" in node_labels:
-                node_type = "Movement"
-                node_value = record["name"]
-            elif "Strike" in node_labels:
-                node_type = "Strike"
-                node_value = record["name"]
-            elif "Crisis" in node_labels:
-                node_type = "Crisis"
-                node_value = record["name"]
-            elif "Rebellion" in node_labels:
-                node_type = "Rebellion"
-                node_value = record["name"]
-            elif "Dynasty" in node_labels:
-                node_type = "Dynasty"
-                node_value = record["name"]
-            elif "Invasion" in node_labels:
-                node_type = "Invasion"
-                node_value = record["name"]
-            elif "Colonization" in node_labels:
-                node_type = "Colonization"
-                node_value = record["name"]
-            elif "Religion" in node_labels:
-                node_type = "Religion"
-                node_value = record["name"]
-            elif "Art" in node_labels:
-                node_type = "Art"
-                node_value = record["name"]
-            elif "Architecture" in node_labels:
-                node_type = "Architecture"
-                node_value = record["name"]
-            elif "ScientificDiscovery" in node_labels:
-                node_type = "Scientific Discovery"
-                node_value = record["title"]
-            elif "Technology" in node_labels:
-                node_type = "Technology"
-                node_value = record["name"]
-            elif "Trade" in node_labels:
-                node_type = "Trade"
-                node_value = record["name"]
-            elif "Empire" in node_labels:
-                node_type = "Empire"
-                node_value = record["name"]
-            elif "EconomicPolicy" in node_labels:
-                node_type = "Economic Policy"
-                node_value = record["description"]
-            elif "PoliticalParty" in node_labels:
-                node_type = "Political Party"
-                node_value = record["name"]
+            # Add relationships between the nodes
+            for relationship in relationships:
+                insights.append(f"Relationship: {type(relationship)}")
 
-            # Handle related nodes (names, titles, descriptions)
-            related_info = []
-            for related_name in record["related_names"]:
-                if related_name:
-                    related_info.append(related_name)
-            for related_title in record["related_titles"]:
-                if related_title:
-                    related_info.append(related_title)
-            for related_description in record["related_descriptions"]:
-                if related_description:
-                    related_info.append(related_description)
-
-            # Format the insight for each matched entity
-            if node_value:
-                insight = f"{node_type}: {node_value}"
-                if related_info:
-                    insight += f" is associated with: {', '.join(related_info)}"
-                if record["relationship"]:
-                    insight += f" (Relationship: {record['relationship']})"
-                insights.append(insight)
-
-        # Return the insights or a default message if nothing is found
+        # Format insights
         return "\n".join(insights) if insights else "No relevant insights found."
+
 
 
 # ---- Combined Query Function with Chat History ----
