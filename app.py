@@ -172,109 +172,135 @@ def categorize_question(question):
 
 # Enhanced function to fetch deeply connected insights from the graph
 def get_graph_insights(question, driver):
-    # Categorize the question to guide the query
-    category = categorize_question(question)
-
     with driver.session() as session:
-        # Cypher query to fetch nodes and relationships, expanding to 4 levels of depth, all relationships
-        query = """
-        MATCH (n)
-        WHERE toLower(n.name) CONTAINS toLower($question)
-        OR toLower(n.title) CONTAINS toLower($question)
-        OR toLower(n.description) CONTAINS toLower($question)
-        OR toLower(n.value) CONTAINS toLower($question)
-
-        // Traverse up to 4 levels of relationships to gather deep insights, without limiting by label or relationship type
-        CALL apoc.path.expandConfig(n, {
-            minLevel: 1,
-            maxLevel: 4,
-            relationshipFilter: ">",  // Expand along all relationships
-            labelFilter: ">Person|>Event|>Location|>WorkOfArt|>ScientificDiscovery|>PoliticalParty|>Technology",
-            uniqueness: "NODE_PATH"  // Ensure uniqueness of paths traversed
-        }) YIELD path
-        WITH path, nodes(path) AS allNodes, relationships(path) AS allRels
-        RETURN allNodes, allRels
-        """
-
-        # Run the query to retrieve nodes and relationships
-        result = session.run(query, question=question)
+        # Query Neo4j for relevant insights based on the question
+        result = session.run(
+            """
+            // Match nodes that may contain the question keyword in key properties
+            MATCH (n)
+            WHERE toLower(n.name) CONTAINS toLower($question)  // For entities with 'name' properties
+            OR toLower(n.title) CONTAINS toLower($question)  // For Works of Art, Laws, etc.
+            OR toLower(n.description) CONTAINS toLower($question)  // For nodes with 'description' properties
+            OR toLower(n.value) CONTAINS toLower($question)  // For Dates
+            OPTIONAL MATCH (n)-[r]-(related)  // Optional match for related nodes
+            RETURN labels(n) AS node_labels,
+                   n.name AS name,
+                   n.title AS title,
+                   n.description AS description,
+                   n.value AS value,
+                   type(r) AS relationship,
+                   collect(related.name) AS related_names,
+                   collect(related.title) AS related_titles,
+                   collect(related.description) AS related_descriptions
+            """,
+            question=question
+        )
 
         # Prepare the insights from the query results
         insights = []
         for record in result:
-            nodes = record['allNodes']
-            relationships = record['allRels']
+            # Determine the type of node (Person, Event, Date, Location, WorkOfArt, etc.) based on labels
+            node_labels = record["node_labels"]
+            node_type = "Unknown"
+            node_value = None
 
-            # Track nodes and relationships to avoid duplicates
-            seen_nodes = set()
-            seen_relationships = set()
+            # Identify the type of node and relevant property
+            if "Person" in node_labels:
+                node_type = "Person"
+                node_value = record["name"]
+            elif "Event" in node_labels:
+                node_type = "Event"
+                node_value = record["name"]
+            elif "Date" in node_labels:
+                node_type = "Date"
+                node_value = record["value"]
+            elif "Location" in node_labels:
+                node_type = "Location"
+                node_value = record["name"]
+            elif "WorkOfArt" in node_labels:
+                node_type = "WorkOfArt"
+                node_value = record["title"]
+            elif "Law" in node_labels:
+                node_type = "Law"
+                node_value = record["title"]
+            elif "Reform" in node_labels:
+                node_type = "Reform"
+                node_value = record["description"]
+            elif "Change" in node_labels:
+                node_type = "Change"
+                node_value = record["description"]
+            elif "Movement" in node_labels:
+                node_type = "Movement"
+                node_value = record["name"]
+            elif "Strike" in node_labels:
+                node_type = "Strike"
+                node_value = record["name"]
+            elif "Crisis" in node_labels:
+                node_type = "Crisis"
+                node_value = record["name"]
+            elif "Rebellion" in node_labels:
+                node_type = "Rebellion"
+                node_value = record["name"]
+            elif "Dynasty" in node_labels:
+                node_type = "Dynasty"
+                node_value = record["name"]
+            elif "Invasion" in node_labels:
+                node_type = "Invasion"
+                node_value = record["name"]
+            elif "Colonization" in node_labels:
+                node_type = "Colonization"
+                node_value = record["name"]
+            elif "Religion" in node_labels:
+                node_type = "Religion"
+                node_value = record["name"]
+            elif "Art" in node_labels:
+                node_type = "Art"
+                node_value = record["name"]
+            elif "Architecture" in node_labels:
+                node_type = "Architecture"
+                node_value = record["name"]
+            elif "ScientificDiscovery" in node_labels:
+                node_type = "Scientific Discovery"
+                node_value = record["title"]
+            elif "Technology" in node_labels:
+                node_type = "Technology"
+                node_value = record["name"]
+            elif "Trade" in node_labels:
+                node_type = "Trade"
+                node_value = record["name"]
+            elif "Empire" in node_labels:
+                node_type = "Empire"
+                node_value = record["name"]
+            elif "EconomicPolicy" in node_labels:
+                node_type = "Economic Policy"
+                node_value = record["description"]
+            elif "PoliticalParty" in node_labels:
+                node_type = "Political Party"
+                node_value = record["name"]
 
-            # Process nodes: capture name, title, description, and any other relevant property
-            for node in nodes:
-                node_labels = list(node.labels)
-                node_info = None
+            # Handle related nodes (names, titles, descriptions)
+            related_info = []
+            for related_name in record["related_names"]:
+                if related_name:
+                    related_info.append(related_name)
+            for related_title in record["related_titles"]:
+                if related_title:
+                    related_info.append(related_title)
+            for related_description in record["related_descriptions"]:
+                if related_description:
+                    related_info.append(related_description)
 
-                # Handle various node types and gather the most relevant properties for each
-                if "Person" in node_labels:
-                    node_info = f"Person: {node.get('name', 'Unknown')}"
-                elif "Event" in node_labels:
-                    node_info = f"Event: {node.get('name', 'Unknown')}"
-                elif "Location" in node_labels:
-                    node_info = f"Location: {node.get('name', 'Unknown')}"
-                elif "WorkOfArt" in node_labels:
-                    node_info = f"Work of Art: {node.get('title', 'Unknown')}"
-                elif "ScientificDiscovery" in node_labels:
-                    node_info = f"Scientific Discovery: {node.get('title', 'Unknown')}"
-                elif "PoliticalParty" in node_labels:
-                    node_info = f"Political Party: {node.get('name', 'Unknown')}"
-                elif "Technology" in node_labels:
-                    node_info = f"Technology: {node.get('name', 'Unknown')}"
-                elif "Law" in node_labels:
-                    node_info = f"Law: {node.get('title', 'Unknown')}"
-                elif "Reform" in node_labels:
-                    node_info = f"Reform: {node.get('description', 'Unknown')}"
-                elif "Change" in node_labels:
-                    node_info = f"Change: {node.get('description', 'Unknown')}"
-                elif "Crisis" in node_labels:
-                    node_info = f"Crisis: {node.get('name', 'Unknown')}"
-                elif "Trade" in node_labels:
-                    node_info = f"Trade: {node.get('name', 'Unknown')}"
-                elif "Empire" in node_labels:
-                    node_info = f"Empire: {node.get('name', 'Unknown')}"
-                elif "Dynasty" in node_labels:
-                    node_info = f"Dynasty: {node.get('name', 'Unknown')}"
-                elif "Invasion" in node_labels:
-                    node_info = f"Invasion: {node.get('name', 'Unknown')}"
-                elif "Colonization" in node_labels:
-                    node_info = f"Colonization: {node.get('name', 'Unknown')}"
-                elif "Rebellion" in node_labels:
-                    node_info = f"Rebellion: {node.get('name', 'Unknown')}"
-                elif "Religion" in node_labels:
-                    node_info = f"Religion: {node.get('name', 'Unknown')}"
-                elif "Art" in node_labels:
-                    node_info = f"Art: {node.get('name', 'Unknown')}"
-                elif "Architecture" in node_labels:
-                    node_info = f"Architecture: {node.get('name', 'Unknown')}"
+            # Format the insight for each matched entity
+            if node_value:
+                insight = f"{node_type}: {node_value}"
+                if related_info:
+                    insight += f" is associated with: {', '.join(related_info)}"
+                if record["relationship"]:
+                    insight += f" (Relationship: {record['relationship']})"
+                insights.append(insight)
 
-                if node_info and node_info not in seen_nodes:
-                    insights.append(node_info)
-                    seen_nodes.add(node_info)
-
-            # Process relationships between nodes, ensuring no duplicate relationships
-            for relationship in relationships:
-                start_node = relationship.start_node.get('name', relationship.start_node.get('title', 'Unknown'))
-                end_node = relationship.end_node.get('name', relationship.end_node.get('title', 'Unknown'))
-                rel_type = type(relationship).__name__
-
-                rel_info = f"Relationship: {start_node} --[{rel_type}]--> {end_node}"
-                if rel_info not in seen_relationships:
-                    insights.append(rel_info)
-                    seen_relationships.add(rel_info)
-
-        # Format the results
-        formatted_insights = "\n".join(insights) if insights else "No relevant insights found."
-
-        return formatted_insights
+        # Return the insights or a default message if nothing is found
+        return "\n".join(insights) if insights else "No relevant insights found."
 
 
 # ---- Combined Query Function with Chat History ----
