@@ -136,189 +136,136 @@ Answer concisely and provide additional helpful insights if applicable.
 context = """You search from every related information from the graph insights!"""
 
 # ---- Graph Query Function ----
-def get_graph_insights(entity_name, driver):
+def get_graph_insights(question, driver):
     with driver.session() as session:
-        # Cypher query to match entities without specifying a type, and fetch related entities up to many levels
-        cypher_query = f"""
-        MATCH (entity)
-        WHERE entity.name CONTAINS $entity_name OR entity.description CONTAINS $entity_name
-        // First-level relationships
-        OPTIONAL MATCH (entity)-[r1]-(related1)
-        // Second-level relationships
-        OPTIONAL MATCH (related1)-[r2]-(related2)
-        // Third-level relationships
-        OPTIONAL MATCH (related2)-[r3]-(related3)
-        // Fourth-level relationships
-        OPTIONAL MATCH (related3)-[r4]-(related4)
-        // Fifth-level relationships
-        OPTIONAL MATCH (related4)-[r5]-(related5)
-        // Sixth-level relationships
-        OPTIONAL MATCH (related5)-[r6]-(related6)
-        // Seventh-level relationships
-        OPTIONAL MATCH (related6)-[r7]-(related7)
-        // Eighth-level relationships
-        OPTIONAL MATCH (related7)-[r8]-(related8)
-        // Ninth-level relationships
-        OPTIONAL MATCH (related8)-[r9]-(related9)
-        // Tenth-level relationships
-        OPTIONAL MATCH (related9)-[r10]-(related10)
-        // Eleventh-level relationships
-        OPTIONAL MATCH (related10)-[r11]-(related11)
-        // Twelfth-level relationships
-        OPTIONAL MATCH (related11)-[r12]-(related12)
-        // Thirteenth-level relationships
-        OPTIONAL MATCH (related12)-[r13]-(related13)
-        // Fourteenth-level relationships
-        OPTIONAL MATCH (related13)-[r14]-(related14)
-        // Fifteenth-level relationships
-        OPTIONAL MATCH (related14)-[r15]-(related15)
-        RETURN DISTINCT entity, r1, related1, r2, related2, r3, related3, r4, related4, r5, related5, 
-                         r6, related6, r7, related7, r8, related8, r9, related9, r10, related10, 
-                         r11, related11, r12, related12, r13, related13, r14, related14, r15, related15
-        """
+        # Query Neo4j for relevant insights based on the question
+        result = session.run(
+            """
+            // Match nodes that may contain the question keyword in key properties
+            MATCH (n)
+            WHERE toLower(n.name) CONTAINS toLower($question)  // For entities with 'name' properties
+            OR toLower(n.title) CONTAINS toLower($question)  // For Works of Art, Laws, etc.
+            OR toLower(n.description) CONTAINS toLower($question)  // For nodes with 'description' properties
+            OR toLower(n.value) CONTAINS toLower($question)  // For Dates
+            OPTIONAL MATCH (n)-[r]-(related)  // Optional match for related nodes
+            RETURN labels(n) AS node_labels,
+                   n.name AS name,
+                   n.title AS title,
+                   n.description AS description,
+                   n.value AS value,
+                   type(r) AS relationship,
+                   collect(related.name) AS related_names,
+                   collect(related.title) AS related_titles,
+                   collect(related.description) AS related_descriptions
+            """,
+            question=question
+        )
 
-        # Execute the query to fetch all connected nodes and relationships
-        result = session.run(cypher_query, entity_name=entity_name)
-
-        # Initialize an empty dictionary to hold the results
-        insights = {
-            "main_entity": {"name": entity_name},
-            "relationships": [],
-            "related_entities": []
-        }
-
-        # Process the result and build the insights data structure
+        # Prepare the insights from the query results
+        insights = []
         for record in result:
-            # For each level, capture relationships and entities if they exist
-            rel1 = record.get('r1')
-            related1 = record.get('related1')
-            rel2 = record.get('r2')
-            related2 = record.get('related2')
-            rel3 = record.get('r3')
-            related3 = record.get('related3')
-            rel4 = record.get('r4')
-            related4 = record.get('related4')
-            rel5 = record.get('r5')
-            related5 = record.get('related5')
-            rel6 = record.get('r6')
-            related6 = record.get('related6')
-            rel7 = record.get('r7')
-            related7 = record.get('related7')
-            rel8 = record.get('r8')
-            related8 = record.get('related8')
-            rel9 = record.get('r9')
-            related9 = record.get('related9')
-            rel10 = record.get('r10')
-            related10 = record.get('related10')
-            rel11 = record.get('r11')
-            related11 = record.get('related11')
-            rel12 = record.get('r12')
-            related12 = record.get('related12')
-            rel13 = record.get('r13')
-            related13 = record.get('related13')
-            rel14 = record.get('r14')
-            related14 = record.get('related14')
-            rel15 = record.get('r15')
-            related15 = record.get('related15')
+            # Determine the type of node (Person, Event, Date, Location, WorkOfArt, etc.) based on labels
+            node_labels = record["node_labels"]
+            node_type = "Unknown"
+            node_value = None
 
-            # Capture relationships and entities for all 15 levels
-            if related1:
-                insights["related_entities"].append({
-                    "entity": related1["name"],
-                    "relationship": str(rel1.type()) if rel1 else "Unknown"
-                })
+            # Identify the type of node and relevant property
+            if "Person" in node_labels:
+                node_type = "Person"
+                node_value = record["name"]
+            elif "Event" in node_labels:
+                node_type = "Event"
+                node_value = record["name"]
+            elif "Date" in node_labels:
+                node_type = "Date"
+                node_value = record["value"]
+            elif "Location" in node_labels:
+                node_type = "Location"
+                node_value = record["name"]
+            elif "WorkOfArt" in node_labels:
+                node_type = "WorkOfArt"
+                node_value = record["title"]
+            elif "Law" in node_labels:
+                node_type = "Law"
+                node_value = record["title"]
+            elif "Reform" in node_labels:
+                node_type = "Reform"
+                node_value = record["description"]
+            elif "Change" in node_labels:
+                node_type = "Change"
+                node_value = record["description"]
+            elif "Movement" in node_labels:
+                node_type = "Movement"
+                node_value = record["name"]
+            elif "Strike" in node_labels:
+                node_type = "Strike"
+                node_value = record["name"]
+            elif "Crisis" in node_labels:
+                node_type = "Crisis"
+                node_value = record["name"]
+            elif "Rebellion" in node_labels:
+                node_type = "Rebellion"
+                node_value = record["name"]
+            elif "Dynasty" in node_labels:
+                node_type = "Dynasty"
+                node_value = record["name"]
+            elif "Invasion" in node_labels:
+                node_type = "Invasion"
+                node_value = record["name"]
+            elif "Colonization" in node_labels:
+                node_type = "Colonization"
+                node_value = record["name"]
+            elif "Religion" in node_labels:
+                node_type = "Religion"
+                node_value = record["name"]
+            elif "Art" in node_labels:
+                node_type = "Art"
+                node_value = record["name"]
+            elif "Architecture" in node_labels:
+                node_type = "Architecture"
+                node_value = record["name"]
+            elif "ScientificDiscovery" in node_labels:
+                node_type = "Scientific Discovery"
+                node_value = record["title"]
+            elif "Technology" in node_labels:
+                node_type = "Technology"
+                node_value = record["name"]
+            elif "Trade" in node_labels:
+                node_type = "Trade"
+                node_value = record["name"]
+            elif "Empire" in node_labels:
+                node_type = "Empire"
+                node_value = record["name"]
+            elif "EconomicPolicy" in node_labels:
+                node_type = "Economic Policy"
+                node_value = record["description"]
+            elif "PoliticalParty" in node_labels:
+                node_type = "Political Party"
+                node_value = record["name"]
 
-            if related2:
-                insights["related_entities"].append({
-                    "entity": related2["name"],
-                    "relationship": str(rel2.type()) if rel2 else "Unknown"
-                })
+            # Handle related nodes (names, titles, descriptions)
+            related_info = []
+            for related_name in record["related_names"]:
+                if related_name:
+                    related_info.append(related_name)
+            for related_title in record["related_titles"]:
+                if related_title:
+                    related_info.append(related_title)
+            for related_description in record["related_descriptions"]:
+                if related_description:
+                    related_info.append(related_description)
 
-            if related3:
-                insights["related_entities"].append({
-                    "entity": related3["name"],
-                    "relationship": str(rel3.type()) if rel3 else "Unknown"
-                })
+            # Format the insight for each matched entity
+            if node_value:
+                insight = f"{node_type}: {node_value}"
+                if related_info:
+                    insight += f" is associated with: {', '.join(related_info)}"
+                if record["relationship"]:
+                    insight += f" (Relationship: {record['relationship']})"
+                insights.append(insight)
 
-            if related4:
-                insights["related_entities"].append({
-                    "entity": related4["name"],
-                    "relationship": str(rel4.type()) if rel4 else "Unknown"
-                })
-
-            if related5:
-                insights["related_entities"].append({
-                    "entity": related5["name"],
-                    "relationship": str(rel5.type()) if rel5 else "Unknown"
-                })
-
-            if related6:
-                insights["related_entities"].append({
-                    "entity": related6["name"],
-                    "relationship": str(rel6.type()) if rel6 else "Unknown"
-                })
-
-            if related7:
-                insights["related_entities"].append({
-                    "entity": related7["name"],
-                    "relationship": str(rel7.type()) if rel7 else "Unknown"
-                })
-
-            if related8:
-                insights["related_entities"].append({
-                    "entity": related8["name"],
-                    "relationship": str(rel8.type()) if rel8 else "Unknown"
-                })
-
-            if related9:
-                insights["related_entities"].append({
-                    "entity": related9["name"],
-                    "relationship": str(rel9.type()) if rel9 else "Unknown"
-                })
-
-            if related10:
-                insights["related_entities"].append({
-                    "entity": related10["name"],
-                    "relationship": str(rel10.type()) if rel10 else "Unknown"
-                })
-
-            if related11:
-                insights["related_entities"].append({
-                    "entity": related11["name"],
-                    "relationship": str(rel11.type()) if rel11 else "Unknown"
-                })
-
-            if related12:
-                insights["related_entities"].append({
-                    "entity": related12["name"],
-                    "relationship": str(rel12.type()) if rel12 else "Unknown"
-                })
-
-            if related13:
-                insights["related_entities"].append({
-                    "entity": related13["name"],
-                    "relationship": str(rel13.type()) if rel13 else "Unknown"
-                })
-
-            if related14:
-                insights["related_entities"].append({
-                    "entity": related14["name"],
-                    "relationship": str(rel14.type()) if rel14 else "Unknown"
-                })
-
-            if related15:
-                insights["related_entities"].append({
-                    "entity": related15["name"],
-                    "relationship": str(rel15.type()) if rel15 else "Unknown"
-                })
-
-        # Check if insights were found and return them, or provide a default message if no data was retrieved.
-        if insights["related_entities"]:
-            return insights
-        else:
-            return "No relevant insights found."
-
-
+        # Return the insights or a default message if nothing is found
+        return "\n".join(insights) if insights else "No relevant insights found."
 
 
 # ---- Combined Query Function with Chat History ----
