@@ -154,12 +154,29 @@ def categorize_question(question):
 
 
 # Function to fetch detailed insights from the graph
+import re
+
+# Categorize the question based on its type (Who/What/When/Where)
+def categorize_question(question):
+    question = question.lower()
+    if re.search(r"\bwho\b", question):
+        return 'Person'
+    elif re.search(r"\bwhat\b", question):
+        return 'General'
+    elif re.search(r"\bwhen\b", question):
+        return 'Date'
+    elif re.search(r"\bwhere\b", question):
+        return 'Location'
+    else:
+        return 'General'
+
+# Enhanced function to fetch deeply connected insights from the graph
 def get_graph_insights(question, driver):
     # Categorize the question to guide the query
     category = categorize_question(question)
 
     with driver.session() as session:
-        # Cypher query to fetch nodes and relationships based on question keywords
+        # Cypher query to fetch nodes and relationships, expanding to 4 levels of depth, all relationships
         query = """
         MATCH (n)
         WHERE toLower(n.name) CONTAINS toLower($question)
@@ -167,12 +184,13 @@ def get_graph_insights(question, driver):
         OR toLower(n.description) CONTAINS toLower($question)
         OR toLower(n.value) CONTAINS toLower($question)
 
-        // Expand relationships up to 3 levels deep and filter paths based on relationship types
-        WITH n
+        // Traverse up to 4 levels of relationships to gather deep insights, without limiting by label or relationship type
         CALL apoc.path.expandConfig(n, {
-            relationshipFilter: "PARTICIPATED_IN|INFLUENCED_BY|LOCATED_IN|ASSOCIATED_WITH",
-            labelFilter: "+Person|+Event|+Location|+WorkOfArt|+ScientificDiscovery|+PoliticalParty|+Technology",
-            minLevel: 1, maxLevel: 3
+            minLevel: 1,
+            maxLevel: 4,
+            relationshipFilter: ">",  // Expand along all relationships
+            labelFilter: ">Person|>Event|>Location|>WorkOfArt|>ScientificDiscovery|>PoliticalParty|>Technology",
+            uniqueness: "NODE_PATH"  // Ensure uniqueness of paths traversed
         }) YIELD path
         WITH path, nodes(path) AS allNodes, relationships(path) AS allRels
         RETURN allNodes, allRels
@@ -191,9 +209,12 @@ def get_graph_insights(question, driver):
             seen_nodes = set()
             seen_relationships = set()
 
-            # Process nodes
+            # Process nodes: capture name, title, description, and any other relevant property
             for node in nodes:
                 node_labels = list(node.labels)
+                node_info = None
+
+                # Handle various node types and gather the most relevant properties for each
                 if "Person" in node_labels:
                     node_info = f"Person: {node.get('name', 'Unknown')}"
                 elif "Event" in node_labels:
@@ -208,17 +229,44 @@ def get_graph_insights(question, driver):
                     node_info = f"Political Party: {node.get('name', 'Unknown')}"
                 elif "Technology" in node_labels:
                     node_info = f"Technology: {node.get('name', 'Unknown')}"
-                else:
-                    node_info = f"Other Entity: {node.get('name', 'Unknown')}"
+                elif "Law" in node_labels:
+                    node_info = f"Law: {node.get('title', 'Unknown')}"
+                elif "Reform" in node_labels:
+                    node_info = f"Reform: {node.get('description', 'Unknown')}"
+                elif "Change" in node_labels:
+                    node_info = f"Change: {node.get('description', 'Unknown')}"
+                elif "Crisis" in node_labels:
+                    node_info = f"Crisis: {node.get('name', 'Unknown')}"
+                elif "Trade" in node_labels:
+                    node_info = f"Trade: {node.get('name', 'Unknown')}"
+                elif "Empire" in node_labels:
+                    node_info = f"Empire: {node.get('name', 'Unknown')}"
+                elif "Dynasty" in node_labels:
+                    node_info = f"Dynasty: {node.get('name', 'Unknown')}"
+                elif "Invasion" in node_labels:
+                    node_info = f"Invasion: {node.get('name', 'Unknown')}"
+                elif "Colonization" in node_labels:
+                    node_info = f"Colonization: {node.get('name', 'Unknown')}"
+                elif "Rebellion" in node_labels:
+                    node_info = f"Rebellion: {node.get('name', 'Unknown')}"
+                elif "Religion" in node_labels:
+                    node_info = f"Religion: {node.get('name', 'Unknown')}"
+                elif "Art" in node_labels:
+                    node_info = f"Art: {node.get('name', 'Unknown')}"
+                elif "Architecture" in node_labels:
+                    node_info = f"Architecture: {node.get('name', 'Unknown')}"
 
-                if node_info not in seen_nodes:
+                if node_info and node_info not in seen_nodes:
                     insights.append(node_info)
                     seen_nodes.add(node_info)
 
-            # Process relationships between nodes
+            # Process relationships between nodes, ensuring no duplicate relationships
             for relationship in relationships:
-                rel_type = type(relationship).__name__  # Get the type of relationship
-                rel_info = f"Relationship: {rel_type}"
+                start_node = relationship.start_node.get('name', relationship.start_node.get('title', 'Unknown'))
+                end_node = relationship.end_node.get('name', relationship.end_node.get('title', 'Unknown'))
+                rel_type = type(relationship).__name__
+
+                rel_info = f"Relationship: {start_node} --[{rel_type}]--> {end_node}"
                 if rel_info not in seen_relationships:
                     insights.append(rel_info)
                     seen_relationships.add(rel_info)
@@ -227,8 +275,6 @@ def get_graph_insights(question, driver):
         formatted_insights = "\n".join(insights) if insights else "No relevant insights found."
 
         return formatted_insights
-
-
 
 
 # ---- Combined Query Function with Chat History ----
