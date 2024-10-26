@@ -136,12 +136,30 @@ Answer concisely and provide additional helpful insights if applicable.
 context = """You search from every related information from the graph insights!"""
 
 # ---- Graph Query Function ----
+import re
+
+# Categorize the question based on its type (Who/What/When/Where)
+def categorize_question(question):
+    question = question.lower()
+    if re.search(r"\bwho\b", question):
+        return 'Person'
+    elif re.search(r"\bwhat\b", question):
+        return 'General'
+    elif re.search(r"\bwhen\b", question):
+        return 'Date'
+    elif re.search(r"\bwhere\b", question):
+        return 'Location'
+    else:
+        return 'General'
+
+
+# Function to fetch detailed insights from the graph
 def get_graph_insights(question, driver):
-    # Categorize the question for more focused querying
+    # Categorize the question to guide the query
     category = categorize_question(question)
-    
+
     with driver.session() as session:
-        # Build query based on the question category
+        # Cypher query to fetch nodes and relationships based on question keywords
         query = """
         MATCH (n)
         WHERE toLower(n.name) CONTAINS toLower($question)
@@ -153,35 +171,63 @@ def get_graph_insights(question, driver):
         WITH n
         CALL apoc.path.expandConfig(n, {
             relationshipFilter: "PARTICIPATED_IN|INFLUENCED_BY|LOCATED_IN|ASSOCIATED_WITH",
-            labelFilter: "+Person|+Event|+Location|+WorkOfArt|+ScientificDiscovery|+PoliticalParty",
+            labelFilter: "+Person|+Event|+Location|+WorkOfArt|+ScientificDiscovery|+PoliticalParty|+Technology",
             minLevel: 1, maxLevel: 3
         }) YIELD path
         WITH path, nodes(path) AS allNodes, relationships(path) AS allRels
         RETURN allNodes, allRels
         """
-        
-        # Run the query
+
+        # Run the query to retrieve nodes and relationships
         result = session.run(query, question=question)
 
+        # Prepare the insights from the query results
         insights = []
         for record in result:
             nodes = record['allNodes']
             relationships = record['allRels']
-            
+
+            # Track nodes and relationships to avoid duplicates
+            seen_nodes = set()
+            seen_relationships = set()
+
+            # Process nodes
             for node in nodes:
-                labels = list(node.labels)
-                if "Person" in labels:
-                    insights.append(f"Person: {node['name']}")
-                elif "Event" in labels:
-                    insights.append(f"Event: {node['name']}")
-                # Continue for other node types (WorkOfArt, ScientificDiscovery, etc.)
+                node_labels = list(node.labels)
+                if "Person" in node_labels:
+                    node_info = f"Person: {node.get('name', 'Unknown')}"
+                elif "Event" in node_labels:
+                    node_info = f"Event: {node.get('name', 'Unknown')}"
+                elif "Location" in node_labels:
+                    node_info = f"Location: {node.get('name', 'Unknown')}"
+                elif "WorkOfArt" in node_labels:
+                    node_info = f"Work of Art: {node.get('title', 'Unknown')}"
+                elif "ScientificDiscovery" in node_labels:
+                    node_info = f"Scientific Discovery: {node.get('title', 'Unknown')}"
+                elif "PoliticalParty" in node_labels:
+                    node_info = f"Political Party: {node.get('name', 'Unknown')}"
+                elif "Technology" in node_labels:
+                    node_info = f"Technology: {node.get('name', 'Unknown')}"
+                else:
+                    node_info = f"Other Entity: {node.get('name', 'Unknown')}"
 
-            # Add relationships between the nodes
+                if node_info not in seen_nodes:
+                    insights.append(node_info)
+                    seen_nodes.add(node_info)
+
+            # Process relationships between nodes
             for relationship in relationships:
-                insights.append(f"Relationship: {type(relationship)}")
+                rel_type = type(relationship).__name__  # Get the type of relationship
+                rel_info = f"Relationship: {rel_type}"
+                if rel_info not in seen_relationships:
+                    insights.append(rel_info)
+                    seen_relationships.add(rel_info)
 
-        # Format insights
-        return "\n".join(insights) if insights else "No relevant insights found."
+        # Format the results
+        formatted_insights = "\n".join(insights) if insights else "No relevant insights found."
+
+        return formatted_insights
+
 
 
 
