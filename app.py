@@ -76,6 +76,32 @@ def save_chat_history_to_mongodb(entry):
         st.error(f"Failed to save chat history: {e}")
 
 
+# After all imports
+from neo4j import GraphDatabase
+
+# ---- Define Function to Batch Query Nodes ----
+def fetch_nodes_in_batches(driver, batch_size=1000):
+    nodes = []
+    offset = 0
+    while True:
+        with driver.session() as session:
+            result = session.run(
+                """
+                MATCH (n)
+                RETURN n SKIP $offset LIMIT $batch_size
+                """,
+                offset=offset, batch_size=batch_size
+            )
+            batch_nodes = [record["n"] for record in result]
+            if not batch_nodes:
+                break
+            nodes.extend(batch_nodes)
+            offset += batch_size
+    return nodes
+
+# ---- Fetch All Nodes ----
+all_nodes = fetch_nodes_in_batches(driver)
+
 # ---- Recursive Directory Reader and Preprocessing ----
 @st.cache_data
 def load_and_preprocess_documents():
@@ -88,9 +114,9 @@ def load_and_preprocess_documents():
             all_docs.append(doc)
     return all_docs
 
-# ---- Set up Embedding Model and LLM ----
+# ---- Update Setup Model and Index ----
 @st.cache_data
-def setup_model_and_index(_all_docs):  # The leading underscore is added to avoid caching this argument
+def setup_model_and_index(_all_docs, all_nodes):  # Pass fetched nodes as a parameter
     embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
     llm = Groq(model="llama3-70b-8192", api_key=GROQ_API_KEY)
     from llama_index.core import Settings
@@ -101,14 +127,21 @@ def setup_model_and_index(_all_docs):  # The leading underscore is added to avoi
     text_splitter = SentenceSplitter(chunk_size=2048, chunk_overlap=300)
     nodes = text_splitter.get_nodes_from_documents(_all_docs, show_progress=True)
 
+    # ---- Create Nodes from Graph Data ----
+    # Here, you can process the nodes fetched from Neo4j as needed.
+    # Example: transforming node data into your desired structure for indexing.
+    # You may also decide how to handle these nodes within your embedding/indexing workflow.
+
     # ---- Index Creation (In-memory) ----
-    index = VectorStoreIndex(nodes, llm=llm, embed_model=embed_model)
+    index = VectorStoreIndex(nodes + all_nodes, llm=llm, embed_model=embed_model)  # Combine your docs and fetched nodes
     
     return index
 
 # Load documents and create index
 all_docs = load_and_preprocess_documents()
-index = setup_model_and_index(all_docs)  # Argument now passed as _all_docs in the function
+all_nodes = fetch_nodes_in_batches(driver)  # Fetch nodes in batches
+index = setup_model_and_index(all_docs, all_nodes)  # Argument now passed as _all_docs in the function
+
 
 # ---- Prompt Template ----
 prompt_template = """
