@@ -20,12 +20,11 @@ st.set_page_config(
 )
 
 # ---- MongoDB Connection Setup ----
-MONGO_URL = "mongodb+srv://username:password@cluster0.bkwpm.mongodb.net/dbname?retryWrites=true&w=majority&tls=true"
 DATABASE_NAME = "greyfiles"
 COLLECTION_NAME = "chat_history"
 
 # Initialize MongoDB client
-client = pymongo.MongoClient(MONGO_URL, tls=True, tlsAllowInvalidCertificates=True)
+client = pymongo.MongoClient("mongodb+srv://<username>:<password>@cluster0.bkwpm.mongodb.net/<dbname>?retryWrites=true&w=majority&tls=true&tlsAllowInvalidCertificates=true")
 db = client[DATABASE_NAME]
 collection = db[COLLECTION_NAME]
 
