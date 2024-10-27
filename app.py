@@ -44,9 +44,9 @@ db = client["greyfiles_db"]  # Replace with your database name
 collection = db["chat_history"]  # Collection for chat history
 
 # ---- Neo4j Database Credentials ----
-NEO4J_URI = "bolt+s://206d9625.databases.neo4j.io"
+NEO4J_URI = "bolt+s://82c0dc6b.databases.neo4j.io"
 NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "TMRa604NneBDNaTfEH7ZhGqPFBhlHLrarLJQXwc83dg"
+NEO4J_PASSWORD = "yZ5fUk04w5s4zrRHb0P9x2q9gR72miCPbY103DV90Ds"
 driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 # Load secrets
