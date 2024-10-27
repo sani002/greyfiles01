@@ -10,7 +10,6 @@ from llama_index.llms.groq import Groq
 from neo4j import GraphDatabase
 from llama_index.core.node_parser import SentenceSplitter
 from pymongo import MongoClient  # Added for MongoDB integration
-import json
 from datetime import datetime
 
 # Streamlit page configuration
@@ -65,22 +64,21 @@ st.title("Grey Files Prototype 0.1")
 st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
 st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
 
-# Function to save the chat history to MongoDB in real-time
-def save_chat_history_to_mongodb(chat_history):
+# Modify this function to save only the latest entry
+def save_chat_history_to_mongodb(latest_entry):
     try:
-        serializable_chat_history = []
-        for entry in chat_history:
-            serializable_chat_history.append({
-                "user": entry["user"],
-                "response": str(entry["response"]),
-                "feedback": entry["feedback"],
-                "timestamp": datetime.now().isoformat()  # Add timestamp
-            })
+        serializable_entry = {
+            "user": latest_entry["user"],
+            "response": str(latest_entry["response"]),
+            "feedback": latest_entry["feedback"],
+            "timestamp": datetime.now().isoformat()  # Add timestamp
+        }
         
-        # Insert the chat history into MongoDB
-        collection.insert_many(serializable_chat_history)
+        # Insert the latest chat message into MongoDB
+        collection.insert_one(serializable_entry)
     except Exception as e:
         st.error(f"Failed to save chat history: {e}")
+
 
 # ---- Recursive Directory Reader and Preprocessing ----
 @st.cache_data
@@ -288,18 +286,21 @@ if "chat_history" not in st.session_state:
 
 user_question = st.chat_input("Ask your question:")
 
+# Process the user's question and save only the latest message
 if user_question:
     response = combined_query(user_question, index.as_query_engine(), driver, st.session_state.chat_history)
     
     # Append question and response to the chat history
-    st.session_state.chat_history.append({
+    latest_entry = {
         "user": user_question,
         "response": str(response),
         "feedback": None  # Placeholder for feedback
-    })
+    }
+    st.session_state.chat_history.append(latest_entry)
     
-    # Save chat after each message (real-time saving)
-    save_chat_history_to_mongodb(st.session_state.chat_history)
+    # Save only the latest message (real-time saving of the latest entry)
+    save_chat_history_to_mongodb(latest_entry)
+
 
 # Display the chat history in a conversational manner (skip suggestions)
 for idx, chat in enumerate(st.session_state.chat_history):
@@ -318,14 +319,11 @@ for idx, chat in enumerate(st.session_state.chat_history):
             with col1:
                 if st.button("Like", key=f"like_{idx}"):
                     st.session_state.chat_history[idx]["feedback"] = "like"
-                    save_chat_history_to_mongodb(st.session_state.chat_history)
+                    # Save only the updated entry with feedback
+                    save_chat_history_to_mongodb(st.session_state.chat_history[idx])
             with col2:
                 if st.button("Dislike", key=f"dislike_{idx}"):
                     st.session_state.chat_history[idx]["feedback"] = "dislike"
-                    save_chat_history_to_mongodb(st.session_state.chat_history)
-        else:
-            # After feedback is given, disable buttons or change their appearance
-            with col1:
-                st.button("Liked", disabled=True, key=f"liked_{idx}")
-            with col2:
-                st.button("Disliked", disabled=True, key=f"disliked_{idx}")
+                    # Save only the updated entry with feedback
+                    save_chat_history_to_mongodb(st.session_state.chat_history[idx])
+
