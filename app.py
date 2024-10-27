@@ -307,7 +307,7 @@ if not st.session_state.logged_in:
                 st.error("Invalid username or password. Please try again.")
 
         # Button to switch to Signup form
-        st.markdown("Don't have an account? [Sign up!](#)")
+        st.markdown("Don't have an account?")
         if st.button("Sign up!"):
             toggle_form()
 
@@ -349,7 +349,7 @@ if not st.session_state.logged_in:
                 st.success("Registration successful! You are now logged in.")
         
         # Button to switch back to Login form
-        st.markdown("Already have an account? [Sign in!](#)")
+        st.markdown("Already have an account?")
         if st.button("Sign in!"):
             toggle_form()
 
