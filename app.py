@@ -259,6 +259,21 @@ def combined_query(user_question, index, driver, chat_history):
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+# Function to save query, response, and feedback to MongoDB
+def save_to_mongodb(user_question, response, feedback=None):
+    document = {
+        "user": user_question,
+        "response": response,
+        "timestamp": datetime.now(),
+        "feedback": feedback  # Include feedback if provided
+    }
+    # Insert the document into MongoDB
+    try:
+        mongo_collection.insert_one(document)
+        print(f"Saved to MongoDB: {document}")  # Debugging statement
+    except Exception as e:
+        print(f"Error saving to MongoDB: {e}")  # Debugging statement
+
 # User input for questions
 user_question = st.chat_input("Ask your question:")
 
