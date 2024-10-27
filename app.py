@@ -64,17 +64,18 @@ st.title("Grey Files Prototype 0.1")
 st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
 st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
 
-# Modify this function to save only the latest entry
-def save_chat_history_to_mongodb(latest_entry):
+# Modify this function to save a single entry at a time
+def save_chat_history_to_mongodb(entry):
     try:
+        # Prepare the entry as a serializable document for MongoDB
         serializable_entry = {
-            "user": latest_entry["user"],
-            "response": str(latest_entry["response"]),
-            "feedback": latest_entry["feedback"],
-            "timestamp": datetime.now().isoformat()  # Add timestamp
+            "user": entry["user"],
+            "response": entry["response"],
+            "feedback": entry["feedback"],
+            "timestamp": entry.get("timestamp", datetime.now().isoformat())  # Use entry timestamp if available
         }
         
-        # Insert the latest chat message into MongoDB
+        # Insert the single chat message or suggestion into MongoDB
         collection.insert_one(serializable_entry)
     except Exception as e:
         st.error(f"Failed to save chat history: {e}")
@@ -265,19 +266,24 @@ with st.sidebar:
     suggestion = st.text_area("Have a suggestion? Let us know!")
     if st.button("Submit Suggestion"):
         if suggestion:
-            # Add the suggestion to the chat history
-            st.session_state.chat_history.append({
+            # Structure the suggestion entry as a dictionary
+            suggestion_entry = {
                 "user": "User Suggestion",
                 "response": suggestion,
-                "feedback": None
-            })
+                "feedback": None,
+                "timestamp": datetime.now().isoformat()  # Add timestamp for suggestion
+            }
             
-            # Save the suggestion in real-time
-            save_chat_history_to_mongodb(st.session_state.chat_history)
+            # Add the suggestion to chat history
+            st.session_state.chat_history.append(suggestion_entry)
+            
+            # Save the suggestion directly
+            save_chat_history_to_mongodb(suggestion_entry)
             
             st.success("Thank you for your suggestion!")
         else:
             st.warning("Please enter a suggestion before submitting.")
+
 
 
 # Main Chat Interface with Like/Dislike Buttons
@@ -312,7 +318,7 @@ for idx, chat in enumerate(st.session_state.chat_history):
         st.markdown(chat["user"])
     with st.chat_message("assistant", avatar="🐦‍⬛"):
         st.markdown(chat["response"])
-        
+
         # Add Like/Dislike buttons for feedback
         col1, col2 = st.columns([1, 1])
         if chat["feedback"] is None:
