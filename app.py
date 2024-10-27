@@ -24,7 +24,7 @@ DATABASE_NAME = "greyfiles"
 COLLECTION_NAME = "chat_history"
 
 # Initialize MongoDB client
-client = pymongo.MongoClient("mongodb+srv://<username>:<password>@cluster0.bkwpm.mongodb.net/<dbname>?retryWrites=true&w=majority&tls=true&tlsAllowInvalidCertificates=true")
+client = pymongo.MongoClient("mongodb+srv://smsakeefsani3:DQtEtUakz9fVv6Db@cluster0.bkwpm.mongodb.net/<dbname>?retryWrites=true&w=majority&tls=true&tlsAllowInvalidCertificates=true")
 db = client[DATABASE_NAME]
 collection = db[COLLECTION_NAME]
 
