@@ -261,16 +261,27 @@ if "username" not in st.session_state:
     st.session_state.username = ""
 if "form" not in st.session_state:
     st.session_state.form = "login_form"  # Start with login form
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False  # Track login status
 
 # ---- Helper Functions ----
 def toggle_form():
+    """Switch between login and signup forms."""
     st.session_state.form = 'signup_form' if st.session_state.form == 'login_form' else 'login_form'
 
 def user_update(name):
+    """Update session state with the logged-in username."""
     st.session_state.username = name
+    st.session_state.logged_in = True  # Set logged-in status
+
+def user_logout():
+    """Clear user session data to log out."""
+    st.session_state.username = ""
+    st.session_state.logged_in = False
+    st.session_state.form = "login_form"  # Reset to login form
 
 # ---- Login and Signup Interface ----
-if st.session_state.username == "":
+if not st.session_state.logged_in:
     if st.session_state.form == 'login_form':
         # Centered Login Form
         st.title("Welcome to Grey Files")
@@ -286,13 +297,12 @@ if st.session_state.username == "":
             user_data = user_collection.find_one({'username': username, 'password': password})
             if user_data:
                 user_update(username)
-                st.success(f"Welcome, {username}!")
-                st.experimental_rerun()  # Refresh the page to show main content
+                st.success(f"Welcome, {username}!")  # Successful login message
             else:
                 st.error("Invalid username or password. Please try again.")
 
         # Button to switch to Signup form
-        st.markdown("Don't have an account?")
+        st.markdown("Don't have an account? [Sign up!](#)")
         if st.button("Sign up!"):
             toggle_form()
 
@@ -332,14 +342,14 @@ if st.session_state.username == "":
                 user_collection.insert_one(user_data)
                 user_update(new_username)
                 st.success("Registration successful! You are now logged in.")
-                st.experimental_rerun()  # Refresh the page to show main content
         
         # Button to switch back to Login form
-        st.markdown("Already have an account?")
+        st.markdown("Already have an account? [Sign in!](#)")
         if st.button("Sign in!"):
             toggle_form()
-else:
-    # ---- Streamlit App Setup ----
+            
+# ---- Main App Content (only for logged-in users) ----
+if st.session_state.logged_in:
     st.title("Grey Files Prototype 0.1")
     st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
     st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
@@ -418,6 +428,5 @@ else:
 
     # Log Out Button
     if st.button("Log Out"):
-        user_update('')  # Clear username to log out
+        user_logout()  # Call function to log out and reset state
         st.success("You have been logged out.")
-        st.experimental_rerun()  # Refresh to show login screen
