@@ -43,75 +43,6 @@ db = client["greyfiles_db"]  # Replace with your database name
 collection = db["chat_history"]  # Collection for chat history
 user_collection = db["user_data"]  # Collection for storing user login data
 
-# ---- Session State Initialization ----
-if "username" not in st.session_state:
-    st.session_state.username = ""
-if "form" not in st.session_state:
-    st.session_state.form = ""
-
-# ---- Helper Functions ----
-def select_signup():
-    st.session_state.form = 'signup_form'
-
-def user_update(name):
-    st.session_state.username = name
-
-# ---- Registration and Login Interface ----
-if st.session_state.form == 'signup_form' and st.session_state.username == '':
-    # Registration (Sign-Up) Form
-    signup_form = st.sidebar.form(key='signup_form', clear_on_submit=True)
-    new_username = signup_form.text_input(label='Enter Username*')
-    new_user_email = signup_form.text_input(label='Enter Email Address*')
-    new_user_pas = signup_form.text_input(label='Enter Password*', type='password')
-    user_pas_conf = signup_form.text_input(label='Confirm Password*', type='password')
-    signup_form.markdown('**Required fields*')
-    signup = signup_form.form_submit_button(label='Sign Up')
-    
-    if signup:
-        if '' in [new_username, new_user_email, new_user_pas]:
-            st.sidebar.error('Some fields are missing')
-        else:
-            if user_collection.find_one({'username': new_username}):
-                st.sidebar.error('Username already exists')
-            elif user_collection.find_one({'email': new_user_email}):
-                st.sidebar.error('Email is already registered')
-            elif new_user_pas != user_pas_conf:
-                st.sidebar.error('Passwords do not match')
-            else:
-                user_data = {
-                    "username": new_username,
-                    "email": new_user_email,
-                    "password": new_user_pas,
-                    "created_at": datetime.now()
-                }
-                user_collection.insert_one(user_data)
-                user_update(new_username)
-                st.sidebar.success('You have successfully registered!')
-                st.sidebar.success(f"You are logged in as {new_username.upper()}")
-
-elif st.session_state.username == '':
-    # Login Form
-    login_form = st.sidebar.form(key='signin_form', clear_on_submit=True)
-    username = login_form.text_input(label='Enter Username')
-    user_pas = login_form.text_input(label='Enter Password', type='password')
-    login = login_form.form_submit_button(label='Sign In')
-
-    if login:
-        user_data = user_collection.find_one({'username': username, 'password': user_pas})
-        if user_data:
-            user_update(username)
-            st.sidebar.success(f"You are logged in as {username.upper()}")
-        else:
-            st.sidebar.error("Username or Password is incorrect. Please try again or create an account.")
-
-else:
-    # Logout Button
-    logout = st.sidebar.button(label='Log Out')
-    if logout:
-        user_update('')
-        st.session_state.form = ''
-
-
 # ---- Neo4j Database Credentials ----
 NEO4J_URI = "bolt+s://82c0dc6b.databases.neo4j.io"
 NEO4J_USERNAME = "neo4j"
@@ -325,8 +256,94 @@ def combined_query(question, query_engine, driver, chat_history):
     response = query_engine.query(query_prompt)
     return response
 
-# ---- Main App Content (Only Accessible after Login) ----
-if st.session_state.username:
+# ---- Streamlit Page Configuration ----
+st.set_page_config(
+    page_title="Grey Files 0.1",
+    page_icon="🐦‍⬛",
+    layout="centered",
+)
+
+# ---- Session State Initialization ----
+if "username" not in st.session_state:
+    st.session_state.username = ""
+if "form" not in st.session_state:
+    st.session_state.form = "login_form"  # Start with login form
+
+# ---- Helper Functions ----
+def toggle_form():
+    st.session_state.form = 'signup_form' if st.session_state.form == 'login_form' else 'login_form'
+
+def user_update(name):
+    st.session_state.username = name
+
+# ---- Login and Signup Interface ----
+if st.session_state.username == "":
+    if st.session_state.form == 'login_form':
+        # Centered Login Form
+        st.title("Welcome to Grey Files")
+        st.subheader("Please sign in")
+
+        login_form = st.form(key='login_form', clear_on_submit=True)
+        username = login_form.text_input(label='Username')
+        password = login_form.text_input(label='Password', type='password')
+        login_button = login_form.form_submit_button(label='Sign In')
+        
+        # Login button functionality
+        if login_button:
+            user_data = user_collection.find_one({'username': username, 'password': password})
+            if user_data:
+                user_update(username)
+                st.success(f"Welcome, {username}!")
+            else:
+                st.error("Invalid username or password. Please try again.")
+
+        # Button to switch to Signup form
+        st.markdown("Don't have an account? [Sign up!](#)")
+        if st.button("Sign up!"):
+            toggle_form()
+
+    elif st.session_state.form == 'signup_form':
+        # Centered Signup Form
+        st.title("Create an Account")
+        
+        signup_form = st.form(key='signup_form', clear_on_submit=True)
+        new_username = signup_form.text_input(label='Username*')
+        new_user_email = signup_form.text_input(label='Email Address*')
+        new_user_location = signup_form.text_input(label='Location')
+        new_user_profession = signup_form.text_input(label='Profession')
+        new_user_password = signup_form.text_input(label='Password*', type='password')
+        user_password_conf = signup_form.text_input(label='Confirm Password*', type='password')
+        signup_button = signup_form.form_submit_button(label='Sign Up')
+        
+        # Signup button functionality
+        if signup_button:
+            if '' in [new_username, new_user_email, new_user_password, user_password_conf]:
+                st.error('Please fill in all required fields.')
+            elif new_user_password != user_password_conf:
+                st.error("Passwords do not match.")
+            elif user_collection.find_one({'username': new_username}):
+                st.error('Username already exists.')
+            elif user_collection.find_one({'email': new_user_email}):
+                st.error('Email is already registered.')
+            else:
+                # Add the new user to the database
+                user_data = {
+                    "username": new_username,
+                    "email": new_user_email,
+                    "location": new_user_location,
+                    "profession": new_user_profession,
+                    "password": new_user_password,
+                    "created_at": datetime.now()
+                }
+                user_collection.insert_one(user_data)
+                user_update(new_username)
+                st.success("Registration successful! You are now logged in.")
+        
+        # Button to switch back to Login form
+        st.markdown("Already have an account? [Sign in!](#)")
+        if st.button("Sign in!"):
+            toggle_form()
+else:
     # ---- Streamlit App Setup ----
     st.title("Grey Files Prototype 0.1")
     st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
@@ -404,5 +421,7 @@ if st.session_state.username:
                         # Save only the updated entry with feedback
                         save_chat_history_to_mongodb(st.session_state.chat_history[idx])
 
-else:
-    st.write("Please log in to access the app.")
+    # Log Out Button
+    if st.button("Log Out"):
+        user_update('')  # Clear username to log out
+        st.success("You have been logged out.")
