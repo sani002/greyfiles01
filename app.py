@@ -41,6 +41,76 @@ MONGO_URI = "mongodb+srv://smsakeefsani3:DQtEtUakz9fVv6Db@cluster0.bkwpm.mongodb
 client = MongoClient(MONGO_URI)
 db = client["greyfiles_db"]  # Replace with your database name
 collection = db["chat_history"]  # Collection for chat history
+user_collection = db["user_data"]  # Collection for storing user login data
+
+# ---- Session State Initialization ----
+if "username" not in st.session_state:
+    st.session_state.username = ""
+if "form" not in st.session_state:
+    st.session_state.form = ""
+
+# ---- Helper Functions ----
+def select_signup():
+    st.session_state.form = 'signup_form'
+
+def user_update(name):
+    st.session_state.username = name
+
+# ---- Registration and Login Interface ----
+if st.session_state.form == 'signup_form' and st.session_state.username == '':
+    # Registration (Sign-Up) Form
+    signup_form = st.sidebar.form(key='signup_form', clear_on_submit=True)
+    new_username = signup_form.text_input(label='Enter Username*')
+    new_user_email = signup_form.text_input(label='Enter Email Address*')
+    new_user_pas = signup_form.text_input(label='Enter Password*', type='password')
+    user_pas_conf = signup_form.text_input(label='Confirm Password*', type='password')
+    signup_form.markdown('**Required fields*')
+    signup = signup_form.form_submit_button(label='Sign Up')
+    
+    if signup:
+        if '' in [new_username, new_user_email, new_user_pas]:
+            st.sidebar.error('Some fields are missing')
+        else:
+            if user_collection.find_one({'username': new_username}):
+                st.sidebar.error('Username already exists')
+            elif user_collection.find_one({'email': new_user_email}):
+                st.sidebar.error('Email is already registered')
+            elif new_user_pas != user_pas_conf:
+                st.sidebar.error('Passwords do not match')
+            else:
+                user_data = {
+                    "username": new_username,
+                    "email": new_user_email,
+                    "password": new_user_pas,
+                    "created_at": datetime.now()
+                }
+                user_collection.insert_one(user_data)
+                user_update(new_username)
+                st.sidebar.success('You have successfully registered!')
+                st.sidebar.success(f"You are logged in as {new_username.upper()}")
+
+elif st.session_state.username == '':
+    # Login Form
+    login_form = st.sidebar.form(key='signin_form', clear_on_submit=True)
+    username = login_form.text_input(label='Enter Username')
+    user_pas = login_form.text_input(label='Enter Password', type='password')
+    login = login_form.form_submit_button(label='Sign In')
+
+    if login:
+        user_data = user_collection.find_one({'username': username, 'password': user_pas})
+        if user_data:
+            user_update(username)
+            st.sidebar.success(f"You are logged in as {username.upper()}")
+        else:
+            st.sidebar.error("Username or Password is incorrect. Please try again or create an account.")
+
+else:
+    # Logout Button
+    logout = st.sidebar.button(label='Log Out')
+    if logout:
+        user_update('')
+        st.session_state.form = ''
+
 
 # ---- Neo4j Database Credentials ----
 NEO4J_URI = "bolt+s://82c0dc6b.databases.neo4j.io"
@@ -58,11 +128,6 @@ except:
 
 # Save the api_key to environment variable
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
-
-# ---- Streamlit App Setup ----
-st.title("Grey Files Prototype 0.1")
-st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
-st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
 
 # Modify this function to save a single entry at a time
 def save_chat_history_to_mongodb(entry):
@@ -260,76 +325,84 @@ def combined_query(question, query_engine, driver, chat_history):
     response = query_engine.query(query_prompt)
     return response
 
-# Sidebar for suggestions
-with st.sidebar:
-    st.header("Suggestions")
-    suggestion = st.text_area("Have a suggestion? Let us know!")
-    if st.button("Submit Suggestion"):
-        if suggestion:
-            # Structure the suggestion entry as a dictionary
-            suggestion_entry = {
-                "user": "User Suggestion",
-                "response": suggestion,
-                "feedback": None,
-                "timestamp": datetime.now().isoformat()  # Add timestamp for suggestion
-            }
-            
-            # Add the suggestion to chat history
-            st.session_state.chat_history.append(suggestion_entry)
-            
-            # Save the suggestion directly
-            save_chat_history_to_mongodb(suggestion_entry)
-            
-            st.success("Thank you for your suggestion!")
-        else:
-            st.warning("Please enter a suggestion before submitting.")
+# ---- Main App Content (Only Accessible after Login) ----
+if st.session_state.username:
+    # ---- Streamlit App Setup ----
+    st.title("Grey Files Prototype 0.1")
+    st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
+    st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
+    # Sidebar for suggestions
+    with st.sidebar:
+        st.header("Suggestions")
+        suggestion = st.text_area("Have a suggestion? Let us know!")
+        if st.button("Submit Suggestion"):
+            if suggestion:
+                # Structure the suggestion entry as a dictionary
+                suggestion_entry = {
+                    "user": "User Suggestion",
+                    "response": suggestion,
+                    "feedback": None,
+                    "timestamp": datetime.now().isoformat()  # Add timestamp for suggestion
+                }
+                
+                # Add the suggestion to chat history
+                st.session_state.chat_history.append(suggestion_entry)
+                
+                # Save the suggestion directly
+                save_chat_history_to_mongodb(suggestion_entry)
+                
+                st.success("Thank you for your suggestion!")
+            else:
+                st.warning("Please enter a suggestion before submitting.")
 
 
 
-# Main Chat Interface with Like/Dislike Buttons
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+    # Main Chat Interface with Like/Dislike Buttons
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
 
-user_question = st.chat_input("Ask your question:")
+    user_question = st.chat_input("Ask your question:")
 
-# Process the user's question and save only the latest message
-if user_question:
-    response = combined_query(user_question, index.as_query_engine(), driver, st.session_state.chat_history)
-    
-    # Append question and response to the chat history
-    latest_entry = {
-        "user": user_question,
-        "response": str(response),
-        "feedback": None  # Placeholder for feedback
-    }
-    st.session_state.chat_history.append(latest_entry)
-    
-    # Save only the latest message (real-time saving of the latest entry)
-    save_chat_history_to_mongodb(latest_entry)
+    # Process the user's question and save only the latest message
+    if user_question:
+        response = combined_query(user_question, index.as_query_engine(), driver, st.session_state.chat_history)
+        
+        # Append question and response to the chat history
+        latest_entry = {
+            "user": user_question,
+            "response": str(response),
+            "feedback": None  # Placeholder for feedback
+        }
+        st.session_state.chat_history.append(latest_entry)
+        
+        # Save only the latest message (real-time saving of the latest entry)
+        save_chat_history_to_mongodb(latest_entry)
 
 
-# Display the chat history in a conversational manner (skip suggestions)
-for idx, chat in enumerate(st.session_state.chat_history):
-    if chat["user"] == "User Suggestion":
-        # Skip displaying suggestions in the chat UI
-        continue
+    # Display the chat history in a conversational manner (skip suggestions)
+    for idx, chat in enumerate(st.session_state.chat_history):
+        if chat["user"] == "User Suggestion":
+            # Skip displaying suggestions in the chat UI
+            continue
 
-    with st.chat_message("user", avatar="🦉"):
-        st.markdown(chat["user"])
-    with st.chat_message("assistant", avatar="🐦‍⬛"):
-        st.markdown(chat["response"])
+        with st.chat_message("user", avatar="🦉"):
+            st.markdown(chat["user"])
+        with st.chat_message("assistant", avatar="🐦‍⬛"):
+            st.markdown(chat["response"])
 
-        # Add Like/Dislike buttons for feedback
-        col1, col2 = st.columns([1, 1])
-        if chat["feedback"] is None:
-            with col1:
-                if st.button("Like", key=f"like_{idx}"):
-                    st.session_state.chat_history[idx]["feedback"] = "like"
-                    # Save only the updated entry with feedback
-                    save_chat_history_to_mongodb(st.session_state.chat_history[idx])
-            with col2:
-                if st.button("Dislike", key=f"dislike_{idx}"):
-                    st.session_state.chat_history[idx]["feedback"] = "dislike"
-                    # Save only the updated entry with feedback
-                    save_chat_history_to_mongodb(st.session_state.chat_history[idx])
+            # Add Like/Dislike buttons for feedback
+            col1, col2 = st.columns([1, 1])
+            if chat["feedback"] is None:
+                with col1:
+                    if st.button("Like", key=f"like_{idx}"):
+                        st.session_state.chat_history[idx]["feedback"] = "like"
+                        # Save only the updated entry with feedback
+                        save_chat_history_to_mongodb(st.session_state.chat_history[idx])
+                with col2:
+                    if st.button("Dislike", key=f"dislike_{idx}"):
+                        st.session_state.chat_history[idx]["feedback"] = "dislike"
+                        # Save only the updated entry with feedback
+                        save_chat_history_to_mongodb(st.session_state.chat_history[idx])
 
+else:
+    st.write("Please log in to access the app.")
