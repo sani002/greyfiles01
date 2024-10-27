@@ -289,7 +289,8 @@ def validate_user(username, password):
 if not st.session_state.logged_in:
     if st.session_state.form == 'login_form':
         # Centered Login Form
-        st.title("Welcome to Grey Files")
+        st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
+        st.title("Welcome to Grey Files 0.2")
         st.subheader("Please sign in")
 
         login_form = st.form(key='login_form', clear_on_submit=True)
@@ -313,6 +314,8 @@ if not st.session_state.logged_in:
 
     elif st.session_state.form == 'signup_form':
         # Centered Signup Form
+        st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
+        st.title("Welcome to Grey Files 0.2")
         st.title("Create an Account")
         
         signup_form = st.form(key='signup_form', clear_on_submit=True)
