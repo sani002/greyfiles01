@@ -292,7 +292,7 @@ if st.session_state.username == "":
                 st.error("Invalid username or password. Please try again.")
 
         # Button to switch to Signup form
-        st.markdown("Don't have an account? [Sign up!](#)")
+        st.markdown("Don't have an account?")
         if st.button("Sign up!"):
             toggle_form()
 
@@ -335,7 +335,7 @@ if st.session_state.username == "":
                 st.experimental_rerun()  # Refresh the page to show main content
         
         # Button to switch back to Login form
-        st.markdown("Already have an account? [Sign in!](#)")
+        st.markdown("Already have an account?")
         if st.button("Sign in!"):
             toggle_form()
 else:
