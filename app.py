@@ -287,6 +287,7 @@ if st.session_state.username == "":
             if user_data:
                 user_update(username)
                 st.success(f"Welcome, {username}!")
+                st.experimental_rerun()  # Refresh the page to show main content
             else:
                 st.error("Invalid username or password. Please try again.")
 
@@ -331,6 +332,7 @@ if st.session_state.username == "":
                 user_collection.insert_one(user_data)
                 user_update(new_username)
                 st.success("Registration successful! You are now logged in.")
+                st.experimental_rerun()  # Refresh the page to show main content
         
         # Button to switch back to Login form
         st.markdown("Already have an account? [Sign in!](#)")
@@ -418,3 +420,4 @@ else:
     if st.button("Log Out"):
         user_update('')  # Clear username to log out
         st.success("You have been logged out.")
+        st.experimental_rerun()  # Refresh to show login screen
