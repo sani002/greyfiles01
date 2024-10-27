@@ -1,32 +1,50 @@
-import os
-from datetime import datetime
-import json
-import pymongo
-import streamlit as st
-from bson.objectid import ObjectId
 from dotenv import dotenv_values
-
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+import os
+import streamlit as st
+from llama_index.core import (
+    VectorStoreIndex,
+    SimpleDirectoryReader
+)
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.groq import Groq
 from neo4j import GraphDatabase
 from llama_index.core.node_parser import SentenceSplitter
+import json
+from datetime import datetime
 
-# ---- Streamlit Page Configuration ----
+
+# Streamlit page configuration
 st.set_page_config(
     page_title="Grey Files 0.1",
     page_icon="🐦‍⬛",
     layout="wide",
 )
+# Ensure the chat history folder exists
+if "session_file" not in st.session_state:
+    session_start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # Create a folder if it doesn't exist
+    os.makedirs("chat_history", exist_ok=True)
+    
+    # Save the file in the chat_history folder
+    st.session_state.session_file = os.path.join("chat_history", f"chat_{session_start_time}.json")
 
-# ---- MongoDB Connection Setup ----
-DATABASE_NAME = "greyfiles"
-COLLECTION_NAME = "chat_history"
-
-# Initialize MongoDB client
-client = pymongo.MongoClient("mongodb+srv://smsakeefsani3:DQtEtUakz9fVv6Db@cluster0.bkwpm.mongodb.net/<dbname>?retryWrites=true&w=majority&tls=true&tlsAllowInvalidCertificates=true")
-db = client[DATABASE_NAME]
-collection = db[COLLECTION_NAME]
+# ---- Hide Streamlit Default Elements ----
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    footer:after {
+                    content:'This app provides answers based on documents regarding Bangladesh history.'; 
+                    visibility: visible;
+                    display: block;
+                    position: relative;
+                    padding: 5px;
+                    top: 2px;
+                }
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # ---- Neo4j Database Credentials ----
 NEO4J_URI = "bolt+s://82c0dc6b.databases.neo4j.io"
@@ -45,59 +63,61 @@ except:
 # save the api_key to environment variable
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-# ---- Function to Insert Chat Data into MongoDB ----
-def insert_chat_data(user, response, feedback=None, suggestion=False):
-    chat_entry = {
-        "_id": str(ObjectId()),  # Generate a unique ObjectId for MongoDB _id field
-        "user": "User Suggestion" if suggestion else user,
-        "response": response,
-        "feedback": feedback,
-        "timestamp": datetime.utcnow().isoformat()  # Save timestamp in UTC format
-    }
-    collection.insert_one(chat_entry)
-
 # ---- Streamlit App Setup ----
 st.title("Grey Files Prototype 0.1")
 st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
-st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh.")
+st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
 
-# Ensure the chat history folder exists
-if "session_file" not in st.session_state:
-    session_start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    os.makedirs("chat_history", exist_ok=True)
-    st.session_state.session_file = os.path.join("chat_history", f"chat_{session_start_time}.json")
+# Function to save the chat history in real-time
+def save_chat_history_real_time(chat_history, file_path):
+    try:
+        serializable_chat_history = []
+        for entry in chat_history:
+            serializable_chat_history.append({
+                "user": entry["user"],
+                "response": str(entry["response"]),
+                "feedback": entry["feedback"]
+            })
+        
+        # Save the serializable chat history to a JSON file
+        with open(file_path, "w") as f:
+            json.dump(serializable_chat_history, f, indent=4)
+    except Exception as e:
+        st.error(f"Failed to save chat history: {e}")
 
-# ---- Load and Preprocess Documents ----
+# ---- Recursive Directory Reader and Preprocessing ----
 @st.cache_data
 def load_and_preprocess_documents():
     reader = SimpleDirectoryReader(input_dir="books")
     all_docs = []
     for docs in reader.iter_data():
         for doc in docs:
-            doc.text = doc.text.upper()  # Convert text to uppercase for consistency
+            # Preprocess document: convert text to uppercase for consistency
+            doc.text = doc.text.upper()
             all_docs.append(doc)
     return all_docs
 
 # ---- Set up Embedding Model and LLM ----
 @st.cache_data
-def setup_model_and_index(_all_docs):
+def setup_model_and_index(_all_docs):  # The leading underscore is added to avoid caching this argument
     embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
     llm = Groq(model="llama3-70b-8192", api_key=GROQ_API_KEY)
-    
     from llama_index.core import Settings
     Settings.llm = llm
     Settings.embed_model = embed_model
 
-    # Semantic chunking
+    # ---- Semantic Chunking of Documents ----
     text_splitter = SentenceSplitter(chunk_size=2048, chunk_overlap=300)
     nodes = text_splitter.get_nodes_from_documents(_all_docs, show_progress=True)
+
+    # ---- Index Creation (In-memory) ----
     index = VectorStoreIndex(nodes, llm=llm, embed_model=embed_model)
     
     return index
 
 # Load documents and create index
 all_docs = load_and_preprocess_documents()
-index = setup_model_and_index(all_docs)
+index = setup_model_and_index(all_docs)  # Argument now passed as _all_docs in the function
 
 # ---- Prompt Template ----
 prompt_template = """
@@ -113,24 +133,62 @@ Question: {question}
 Answer concisely and provide additional helpful insights if applicable.
 """
 
-context = "You search from every related information from the graph insights!"
+context = """You search from every related information from the graph insights!"""
 
 # ---- Graph Query Function ----
 import re
 
+# Categorize the question based on its type (Who/What/When/Where)
+def categorize_question(question):
+    question = question.lower()
+    if re.search(r"\bwho\b", question):
+        return 'Person'
+    elif re.search(r"\bwhat\b", question):
+        return 'General'
+    elif re.search(r"\bwhen\b", question):
+        return 'Date'
+    elif re.search(r"\bwhere\b", question):
+        return 'Location'
+    else:
+        return 'General'
+
+
+# Function to fetch detailed insights from the graph
+import re
+
+# Categorize the question based on its type (Who/What/When/Where)
+def categorize_question(question):
+    question = question.lower()
+    if re.search(r"\bwho\b", question):
+        return 'Person'
+    elif re.search(r"\bwhat\b", question):
+        return 'General'
+    elif re.search(r"\bwhen\b", question):
+        return 'Date'
+    elif re.search(r"\bwhere\b", question):
+        return 'Location'
+    else:
+        return 'General'
+
+# Enhanced function to fetch deeply connected insights from the graph
 def get_graph_insights(question, driver):
     with driver.session() as session:
+        # Query Neo4j for relevant insights based on the question
         result = session.run(
             """
+            // Match nodes that may contain the question keyword in key properties
             MATCH (n)
-            WHERE toLower(n.name) CONTAINS toLower($question)
-            OR toLower(n.title) CONTAINS toLower($question)
-            OR toLower(n.description) CONTAINS toLower($question)
-            OR toLower(n.value) CONTAINS toLower($question)
-            OPTIONAL MATCH (n)-[r]-(related)
-            RETURN labels(n) AS node_labels, n.name AS name,
-                   n.title AS title, n.description AS description,
-                   n.value AS value, type(r) AS relationship,
+            WHERE toLower(n.name) CONTAINS toLower($question)  // For entities with 'name' properties
+            OR toLower(n.title) CONTAINS toLower($question)  // For Works of Art, Laws, etc.
+            OR toLower(n.description) CONTAINS toLower($question)  // For nodes with 'description' properties
+            OR toLower(n.value) CONTAINS toLower($question)  // For Dates
+            OPTIONAL MATCH (n)-[r]-(related)  // Optional match for related nodes
+            RETURN labels(n) AS node_labels,
+                   n.name AS name,
+                   n.title AS title,
+                   n.description AS description,
+                   n.value AS value,
+                   type(r) AS relationship,
                    collect(related.name) AS related_names,
                    collect(related.title) AS related_titles,
                    collect(related.description) AS related_descriptions
@@ -138,20 +196,118 @@ def get_graph_insights(question, driver):
             question=question
         )
 
+        # Prepare the insights from the query results
         insights = []
         for record in result:
+            # Determine the type of node (Person, Event, Date, Location, WorkOfArt, etc.) based on labels
             node_labels = record["node_labels"]
-            node_value = record.get("name") or record.get("title") or record.get("description") or record.get("value")
-            related_info = [name for name in record["related_names"] if name]
-            insight = f"{node_labels[0]}: {node_value} is associated with {', '.join(related_info)}" if related_info else ""
-            insights.append(insight)
+            node_type = "Unknown"
+            node_value = None
 
+            # Identify the type of node and relevant property
+            if "Person" in node_labels:
+                node_type = "Person"
+                node_value = record["name"]
+            elif "Event" in node_labels:
+                node_type = "Event"
+                node_value = record["name"]
+            elif "Date" in node_labels:
+                node_type = "Date"
+                node_value = record["value"]
+            elif "Location" in node_labels:
+                node_type = "Location"
+                node_value = record["name"]
+            elif "WorkOfArt" in node_labels:
+                node_type = "WorkOfArt"
+                node_value = record["title"]
+            elif "Law" in node_labels:
+                node_type = "Law"
+                node_value = record["title"]
+            elif "Reform" in node_labels:
+                node_type = "Reform"
+                node_value = record["description"]
+            elif "Change" in node_labels:
+                node_type = "Change"
+                node_value = record["description"]
+            elif "Movement" in node_labels:
+                node_type = "Movement"
+                node_value = record["name"]
+            elif "Strike" in node_labels:
+                node_type = "Strike"
+                node_value = record["name"]
+            elif "Crisis" in node_labels:
+                node_type = "Crisis"
+                node_value = record["name"]
+            elif "Rebellion" in node_labels:
+                node_type = "Rebellion"
+                node_value = record["name"]
+            elif "Dynasty" in node_labels:
+                node_type = "Dynasty"
+                node_value = record["name"]
+            elif "Invasion" in node_labels:
+                node_type = "Invasion"
+                node_value = record["name"]
+            elif "Colonization" in node_labels:
+                node_type = "Colonization"
+                node_value = record["name"]
+            elif "Religion" in node_labels:
+                node_type = "Religion"
+                node_value = record["name"]
+            elif "Art" in node_labels:
+                node_type = "Art"
+                node_value = record["name"]
+            elif "Architecture" in node_labels:
+                node_type = "Architecture"
+                node_value = record["name"]
+            elif "ScientificDiscovery" in node_labels:
+                node_type = "Scientific Discovery"
+                node_value = record["title"]
+            elif "Technology" in node_labels:
+                node_type = "Technology"
+                node_value = record["name"]
+            elif "Trade" in node_labels:
+                node_type = "Trade"
+                node_value = record["name"]
+            elif "Empire" in node_labels:
+                node_type = "Empire"
+                node_value = record["name"]
+            elif "EconomicPolicy" in node_labels:
+                node_type = "Economic Policy"
+                node_value = record["description"]
+            elif "PoliticalParty" in node_labels:
+                node_type = "Political Party"
+                node_value = record["name"]
+
+            # Handle related nodes (names, titles, descriptions)
+            related_info = []
+            for related_name in record["related_names"]:
+                if related_name:
+                    related_info.append(related_name)
+            for related_title in record["related_titles"]:
+                if related_title:
+                    related_info.append(related_title)
+            for related_description in record["related_descriptions"]:
+                if related_description:
+                    related_info.append(related_description)
+
+            # Format the insight for each matched entity
+            if node_value:
+                insight = f"{node_type}: {node_value}"
+                if related_info:
+                    insight += f" is associated with: {', '.join(related_info)}"
+                if record["relationship"]:
+                    insight += f" (Relationship: {record['relationship']})"
+                insights.append(insight)
+
+        # Return the insights or a default message if nothing is found
         return "\n".join(insights) if insights else "No relevant insights found."
+
 
 # ---- Combined Query Function with Chat History ----
 def combined_query(question, query_engine, driver, chat_history):
     graph_insights = get_graph_insights(question, driver)
     
+    # Format the chat history for the prompt
     formatted_chat_history = "\n".join(
         f"User: {entry['user']}\nAssistant: {entry['response']}" for entry in chat_history
     )
@@ -172,12 +328,22 @@ with st.sidebar:
     suggestion = st.text_area("Have a suggestion? Let us know!")
     if st.button("Submit Suggestion"):
         if suggestion:
-            insert_chat_data("User Suggestion", suggestion, suggestion=True)
+            # Add the suggestion to the chat history
+            st.session_state.chat_history.append({
+                "user": "User Suggestion",
+                "response": suggestion,
+                "feedback": None
+            })
+            
+            # Save the suggestion in real-time
+            save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
+            
             st.success("Thank you for your suggestion!")
         else:
             st.warning("Please enter a suggestion before submitting.")
 
-# Main Chat Interface
+
+# Main Chat Interface with Like/Dislike Buttons
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -186,16 +352,22 @@ user_question = st.chat_input("Ask your question:")
 if user_question:
     response = combined_query(user_question, index.as_query_engine(), driver, st.session_state.chat_history)
     
+    # Append question and response to the chat history
     st.session_state.chat_history.append({
         "user": user_question,
         "response": str(response),
-        "feedback": None
+        "feedback": None  # Placeholder for feedback
     })
     
-    insert_chat_data(user_question, response)
+    # Save chat after each message (real-time saving)
+    save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
 
-# Display the chat history
+# Display the chat history in a conversational manner (skip suggestions)
 for idx, chat in enumerate(st.session_state.chat_history):
+    if chat["user"] == "User Suggestion":
+        # Skip displaying suggestions in the chat UI
+        continue
+
     with st.chat_message("user", avatar="🦉"):
         st.markdown(chat["user"])
     with st.chat_message("assistant", avatar="🐦‍⬛"):
@@ -207,11 +379,14 @@ for idx, chat in enumerate(st.session_state.chat_history):
             with col1:
                 if st.button("Like", key=f"like_{idx}"):
                     st.session_state.chat_history[idx]["feedback"] = "like"
-                    collection.update_one({"_id": chat["_id"]}, {"$set": {"feedback": "like"}})
+                    save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
             with col2:
                 if st.button("Dislike", key=f"dislike_{idx}"):
                     st.session_state.chat_history[idx]["feedback"] = "dislike"
-                    collection.update_one({"_id": chat["_id"]}, {"$set": {"feedback": "dislike"}})
+                    save_chat_history_real_time(st.session_state.chat_history, st.session_state.session_file)
         else:
-            # Display feedback status
-            st.write("Feedback given:", chat["feedback"])
+            # After feedback is given, disable buttons or change their appearance
+            with col1:
+                st.button("Liked", disabled=True, key=f"liked_{idx}")
+            with col2:
+                st.button("Disliked", disabled=True, key=f"disliked_{idx}")
