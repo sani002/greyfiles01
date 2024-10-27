@@ -354,6 +354,7 @@ if not st.session_state.logged_in:
             toggle_form()
 
 # ---- Main App Content (only for logged-in users) ----
+@st.cache_data
 if st.session_state.logged_in:
     st.sidebar.title("Account Options")
     if st.sidebar.button("Log Out"):
