@@ -256,13 +256,6 @@ def combined_query(question, query_engine, driver, chat_history):
     response = query_engine.query(query_prompt)
     return response
 
-# ---- Streamlit Page Configuration ----
-st.set_page_config(
-    page_title="Grey Files 0.1",
-    page_icon="🐦‍⬛",
-    layout="centered",
-)
-
 # ---- Session State Initialization ----
 if "username" not in st.session_state:
     st.session_state.username = ""
