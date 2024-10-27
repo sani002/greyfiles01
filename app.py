@@ -14,9 +14,8 @@ from datetime import datetime
 
 # Streamlit page configuration
 st.set_page_config(
-    page_title="Grey Files 0.1",
+    page_title="Grey Files 0.2",
     page_icon="🐦‍⬛",
-    layout="wide",
 )
 
 # ---- Hide Streamlit Default Elements ----
