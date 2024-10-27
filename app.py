@@ -280,6 +280,11 @@ def user_logout():
     st.session_state.logged_in = False
     st.session_state.form = "login_form"  # Reset to login form
 
+@st.cache_data
+def validate_user(username, password):
+    """Cached function to validate user credentials with the database."""
+    return user_collection.find_one({'username': username, 'password': password})
+
 # ---- Login and Signup Interface ----
 if not st.session_state.logged_in:
     if st.session_state.form == 'login_form':
@@ -294,7 +299,7 @@ if not st.session_state.logged_in:
         
         # Login button functionality
         if login_button:
-            user_data = user_collection.find_one({'username': username, 'password': password})
+            user_data = validate_user(username, password)
             if user_data:
                 user_update(username)
                 st.success(f"Welcome, {username}!")  # Successful login message
@@ -347,9 +352,14 @@ if not st.session_state.logged_in:
         st.markdown("Already have an account? [Sign in!](#)")
         if st.button("Sign in!"):
             toggle_form()
-            
+
 # ---- Main App Content (only for logged-in users) ----
 if st.session_state.logged_in:
+    st.sidebar.title("Account Options")
+    if st.sidebar.button("Log Out"):
+        user_logout()  # Call function to log out and reset state
+        st.success("You have been logged out.")
+
     st.title("Grey Files Prototype 0.1")
     st.image('https://github.com/sani002/greyfiles01/blob/main/Grey%20Files.png?raw=true')
     st.caption("Ask questions regarding historical events, relations, and key dates on Bangladesh. Our database is still maturing. Please be kind. Haha!")
@@ -425,8 +435,3 @@ if st.session_state.logged_in:
                         st.session_state.chat_history[idx]["feedback"] = "dislike"
                         # Save only the updated entry with feedback
                         save_chat_history_to_mongodb(st.session_state.chat_history[idx])
-
-    # Log Out Button
-    if st.button("Log Out"):
-        user_logout()  # Call function to log out and reset state
-        st.success("You have been logged out.")
